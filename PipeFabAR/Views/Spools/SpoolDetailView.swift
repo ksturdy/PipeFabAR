@@ -8,6 +8,11 @@
 import SwiftUI
 import SwiftData
 
+/// Identifiable wrapper for fitting detail sheet presentation
+struct FittingDetailSelection: Identifiable {
+    let id: Int
+}
+
 /// Detailed view for editing a spool's pipe drawing
 struct SpoolDetailView: View {
     @Bindable var spool: Spool
@@ -26,11 +31,16 @@ struct SpoolDetailView: View {
     @State private var selectedOletSegment: Int? = nil
     @State private var selectedOletId: UUID? = nil
     @State private var showingOletPicker: Bool = false
+    @State private var editingOletSegment: Int? = nil  // Segment containing the o'let being edited
+    @State private var editingOletId: UUID? = nil  // ID of o'let being edited
     @State private var selectedPointIndex: Int? = nil
     @State private var showingFittingPicker: Bool = false
     @State private var selectedSegmentForSize: Int? = nil
     @State private var showingPipeSizePicker: Bool = false
     @State private var showingBOM: Bool = false
+    @State private var showingSegmentDetail: Bool = false
+    @State private var selectedSegmentIndex: Int? = nil
+    @State private var selectedFittingItem: FittingDetailSelection? = nil
     @State private var zoomScale: CGFloat = 1.0
     @State private var lastZoomScale: CGFloat = 1.0
     @State private var panOffset: CGSize = .zero
@@ -42,6 +52,26 @@ struct SpoolDetailView: View {
     let minZoom: CGFloat = 0.1
     let maxZoom: CGFloat = 8.0
     let allowedAngles: [CGFloat] = [30, 90, 150, 210, 270, 330]
+
+    // Computed property for o'let title
+    var oletTitle: String? {
+        guard let segmentIndex = editingOletSegment,
+              let oletId = editingOletId else {
+            return nil
+        }
+
+        // Find the o'let identifier
+        var count = 1
+        for (pointIndex, point) in pipePoints.enumerated() {
+            for (oIndex, olet) in point.olets.enumerated() {
+                if pointIndex == segmentIndex && olet.id == oletId {
+                    return "O\(count) Location"
+                }
+                count += 1
+            }
+        }
+        return "O'let Location"
+    }
 
     var body: some View {
         Group {
@@ -62,6 +92,8 @@ struct SpoolDetailView: View {
         }
         .onAppear {
             loadSpool()
+            // Auto-detect elbows in any existing drawing
+            detectAllElbows()
         }
         .onDisappear {
             saveSpool()
@@ -71,9 +103,13 @@ struct SpoolDetailView: View {
                 value: $editValue,
                 measurementType: $editMeasurementType,
                 segmentNumber: (editingSegment ?? 0) + 1,
+                title: editingOletId != nil ? oletTitle : nil,
+                showMeasurementType: editingOletId == nil,  // Hide measurement type for o'lets
                 onCancel: {
                     showingKeypad = false
                     editingSegment = nil
+                    editingOletSegment = nil
+                    editingOletId = nil
                 },
                 onSubmit: {
                     applyEdit()
@@ -83,26 +119,7 @@ struct SpoolDetailView: View {
             .presentationDetents([.height(500)])
         }
         .sheet(isPresented: $showingFittingPicker) {
-            FittingTypePicker(
-                selectedType: selectedPointIndex != nil ? pipePoints[selectedPointIndex!].fittingType : .none,
-                selectedOrientation: selectedPointIndex != nil ? pipePoints[selectedPointIndex!].fittingOrientation : nil,
-                pointNumber: (selectedPointIndex ?? 0) + 1,
-                isEndPoint: selectedPointIndex == 0 || selectedPointIndex == pipePoints.count - 1,
-                onSelect: { fittingType, orientation in
-                    if let index = selectedPointIndex {
-                        pipePoints[index].fittingType = fittingType
-                        pipePoints[index].fittingOrientation = orientation
-                        saveSpool()
-                    }
-                    showingFittingPicker = false
-                    selectedPointIndex = nil
-                },
-                onCancel: {
-                    showingFittingPicker = false
-                    selectedPointIndex = nil
-                }
-            )
-            .presentationDetents([.large, .medium])
+            makeFittingPickerView()
         }
         .sheet(isPresented: $showingPipeSizePicker) {
             PipeSizePicker(
@@ -131,15 +148,39 @@ struct SpoolDetailView: View {
                 let oletIndex = pipePoints[segmentIndex].olets.firstIndex(where: { $0.id == oletId })
                 let olet = oletIndex != nil ? pipePoints[segmentIndex].olets[oletIndex!] : nil
 
+                // Calculate segment length for the o'let's segment
+                // O'lets are stored on the start point, so we need to find the end point
+                let segmentEndPoint: CGPoint? = {
+                    // Check if this is a branch segment
+                    if let branchPoint = pipePoints.first(where: { $0.branchParentId == pipePoints[segmentIndex].id }) {
+                        return branchPoint.position
+                    }
+                    // Otherwise it's a main run segment
+                    else if segmentIndex + 1 < pipePoints.count && pipePoints[segmentIndex + 1].branchParentId == nil {
+                        return pipePoints[segmentIndex + 1].position
+                    }
+                    return nil
+                }()
+
+                let segmentLength: CGFloat = {
+                    guard let endPoint = segmentEndPoint else { return 100.0 }
+                    let dx = endPoint.x - pipePoints[segmentIndex].position.x
+                    let dy = endPoint.y - pipePoints[segmentIndex].position.y
+                    return sqrt(dx * dx + dy * dy) / scale
+                }()
+
                 OletPicker(
                     selectedType: olet?.type ?? .weldolet,
                     selectedOrientation: olet?.orientation ?? 90,
                     selectedSize: olet?.size ?? pipePoints[segmentIndex].pipeSize,
-                    onSelect: { type, orientation, size in
+                    selectedPosition: olet?.position ?? 0.5,
+                    segmentLength: segmentLength,
+                    onSelect: { type, orientation, size, position in
                         if let oIndex = pipePoints[segmentIndex].olets.firstIndex(where: { $0.id == oletId }) {
                             pipePoints[segmentIndex].olets[oIndex].type = type
                             pipePoints[segmentIndex].olets[oIndex].orientation = orientation
                             pipePoints[segmentIndex].olets[oIndex].size = size
+                            pipePoints[segmentIndex].olets[oIndex].position = position
                             saveSpool()
                         }
                         showingOletPicker = false
@@ -186,6 +227,12 @@ struct SpoolDetailView: View {
             )
             .presentationDetents([.large])
         }
+        .sheet(isPresented: $showingSegmentDetail) {
+            makeSegmentDetailView()
+        }
+        .sheet(item: $selectedFittingItem) { item in
+            makeFittingDetailView(index: item.id)
+        }
         .alert("Clear All Points?", isPresented: $showingClearConfirmation) {
             Button("Cancel", role: .cancel) { }
             Button("Clear", role: .destructive) {
@@ -195,6 +242,99 @@ struct SpoolDetailView: View {
         } message: {
             Text("This will delete all pipe points and cannot be undone.")
         }
+    }
+
+    // MARK: - Detail View Helpers
+
+    @ViewBuilder
+    private func makeSegmentDetailView() -> some View {
+        if let segmentIndex = selectedSegmentIndex, segmentIndex < pipePoints.count - 1 {
+            let start = pipePoints[segmentIndex]
+            let end = pipePoints[segmentIndex + 1]
+            let dx = end.position.x - start.position.x
+            let dy = end.position.y - start.position.y
+            let length = sqrt(dx * dx + dy * dy) / scale
+
+            PipeSegmentDetailView(
+                segmentLabel: indexToLetter(segmentIndex),
+                pipeSize: start.pipeSize,
+                schedule: .sch40,
+                length: length,
+                isBranchSegment: end.branchParentId != nil,
+                onDismiss: {
+                    showingSegmentDetail = false
+                    selectedSegmentIndex = nil
+                }
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func makeFittingDetailView(index: Int) -> some View {
+        if index < pipePoints.count {
+            let point = pipePoints[index]
+            FittingDetailView(
+                fittingType: point.fittingType,
+                pipeSize: point.pipeSize,
+                onDismiss: {
+                    selectedFittingItem = nil
+                },
+                onEdit: {
+                    selectedFittingItem = nil
+                    selectedPointIndex = index
+                    showingFittingPicker = true
+                },
+                onDelete: {
+                    pipePoints[index].fittingType = .none
+                    pipePoints[index].fittingOrientation = nil
+                    selectedFittingItem = nil
+                    saveSpool()
+                }
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func makeFittingPickerView() -> some View {
+        let pointIndex = selectedPointIndex ?? 0
+        let isTurn = selectedPointIndex != nil ? isPointATurn(at: selectedPointIndex!) : false
+        let currentType = selectedPointIndex != nil ? pipePoints[selectedPointIndex!].fittingType : .none
+
+        // If it's a turn and currently .none, auto-detect the proper type
+        let displayedType: FittingType = {
+            if isTurn && currentType == .none, let index = selectedPointIndex {
+                let prevPoint = pipePoints[index - 1].position
+                let currentPoint = pipePoints[index].position
+                let nextPoint = pipePoints[index + 1].position
+                let incomingAngle = calculateSegmentAngle(from: prevPoint, to: currentPoint)
+                let outgoingAngle = calculateSegmentAngle(from: currentPoint, to: nextPoint)
+                let turn = calculateTurnAngle(incomingAngle: incomingAngle, outgoingAngle: outgoingAngle)
+                return detectElbowType(turnAngle: turn)
+            }
+            return currentType
+        }()
+
+        FittingTypePicker(
+            selectedType: displayedType,
+            selectedOrientation: selectedPointIndex != nil ? pipePoints[selectedPointIndex!].fittingOrientation : nil,
+            pointNumber: pointIndex + 1,
+            isEndPoint: selectedPointIndex == 0 || selectedPointIndex == pipePoints.count - 1,
+            isTurnPoint: isTurn,
+            onSelect: { fittingType, orientation in
+                if let index = selectedPointIndex {
+                    pipePoints[index].fittingType = fittingType
+                    pipePoints[index].fittingOrientation = orientation
+                    saveSpool()
+                }
+                showingFittingPicker = false
+                selectedPointIndex = nil
+            },
+            onCancel: {
+                showingFittingPicker = false
+                selectedPointIndex = nil
+            }
+        )
+        .presentationDetents([.large, .medium])
     }
 
     // MARK: - Layout Variants
@@ -575,7 +715,6 @@ struct SpoolDetailView: View {
             pipeSegmentsView
             oletMarkersView
             pointMarkersView
-            logoView
         }
         .scaleEffect(zoomScale)
         .offset(panOffset)
@@ -671,7 +810,11 @@ struct SpoolDetailView: View {
                     midpoint: midpoint,
                     zoomScale: zoomScale,
                     segmentBubbleOffset: $pipePoints[i].segmentBubbleOffset,
-                    isDraggingAnyLabel: $isDraggingLabel
+                    isDraggingAnyLabel: $isDraggingLabel,
+                    onTap: {
+                        selectedSegmentIndex = i
+                        showingSegmentDetail = true
+                    }
                 )
             }
         }
@@ -719,7 +862,11 @@ struct SpoolDetailView: View {
                     midpoint: midpoint,
                     zoomScale: zoomScale,
                     segmentBubbleOffset: $pipePoints[index].branchSegmentBubbleOffset,
-                    isDraggingAnyLabel: $isDraggingLabel
+                    isDraggingAnyLabel: $isDraggingLabel,
+                    onTap: {
+                        selectedSegmentIndex = index
+                        showingSegmentDetail = true
+                    }
                 )
             }
         }
@@ -737,6 +884,7 @@ struct SpoolDetailView: View {
                         segmentEnd: pipePoints[i + 1].position,
                         zoomScale: zoomScale,
                         scale: scale,
+                        identifier: oletIdentifier(segmentIndex: i, oletIndex: oletIndex),
                         dimensionLabelOffset: $pipePoints[i].olets[oletIndex].dimensionLabelOffset,
                         isDraggingAnyLabel: $isDraggingLabel,
                         onTap: {
@@ -745,9 +893,7 @@ struct SpoolDetailView: View {
                             showingOletPicker = true
                         },
                         onTapDimension: {
-                            selectedOletSegment = i
-                            selectedOletId = pipePoints[i].olets[oletIndex].id
-                            showingOletPicker = true
+                            startEditingOlet(segmentIndex: i, oletId: pipePoints[i].olets[oletIndex].id)
                         }
                     )
                 }
@@ -765,6 +911,7 @@ struct SpoolDetailView: View {
                         segmentEnd: pipePoint.position,
                         zoomScale: zoomScale,
                         scale: scale,
+                        identifier: oletIdentifier(segmentIndex: parentIndex, oletIndex: oletIndex),
                         dimensionLabelOffset: $pipePoints[parentIndex].olets[oletIndex].dimensionLabelOffset,
                         isDraggingAnyLabel: $isDraggingLabel,
                         onTap: {
@@ -773,9 +920,7 @@ struct SpoolDetailView: View {
                             showingOletPicker = true
                         },
                         onTapDimension: {
-                            selectedOletSegment = parentIndex
-                            selectedOletId = pipePoints[parentIndex].olets[oletIndex].id
-                            showingOletPicker = true
+                            startEditingOlet(segmentIndex: parentIndex, oletId: pipePoints[parentIndex].olets[oletIndex].id)
                         }
                     )
                 }
@@ -802,26 +947,17 @@ struct SpoolDetailView: View {
                 onTap: {
                     if branchModeEnabled {
                         createBranchFromTee(at: index)
+                    } else if pipePoint.fittingType != .none {
+                        // If point has a fitting, show fitting details
+                        selectedFittingItem = FittingDetailSelection(id: index)
                     } else {
+                        // If point has no fitting, show fitting picker
                         selectedPointIndex = index
                         showingFittingPicker = true
                     }
                 }
             )
         }
-    }
-
-    private var logoView: some View {
-        VStack {
-            Spacer()
-            HStack {
-                BrandingView(size: 32)
-                    .scaleEffect(1.0 / zoomScale)
-                Spacer()
-            }
-        }
-        .padding(8)
-        .allowsHitTesting(false)
     }
 
     // MARK: - Data Management
@@ -953,7 +1089,91 @@ struct SpoolDetailView: View {
         showingKeypad = true
     }
 
+    func startEditingOlet(segmentIndex: Int, oletId: UUID) {
+        guard segmentIndex < pipePoints.count,
+              let oletIndex = pipePoints[segmentIndex].olets.firstIndex(where: { $0.id == oletId }) else {
+            return
+        }
+
+        let olet = pipePoints[segmentIndex].olets[oletIndex]
+
+        // Calculate segment length
+        let segmentEndPoint: CGPoint? = {
+            // Check if this is a branch segment
+            if let branchPoint = pipePoints.first(where: { $0.branchParentId == pipePoints[segmentIndex].id }) {
+                return branchPoint.position
+            }
+            // Otherwise it's a main run segment
+            else if segmentIndex + 1 < pipePoints.count && pipePoints[segmentIndex + 1].branchParentId == nil {
+                return pipePoints[segmentIndex + 1].position
+            }
+            return nil
+        }()
+
+        guard let endPoint = segmentEndPoint else { return }
+
+        let dx = endPoint.x - pipePoints[segmentIndex].position.x
+        let dy = endPoint.y - pipePoints[segmentIndex].position.y
+        let segmentLength = sqrt(dx * dx + dy * dy) / scale
+        let distanceFromStart = segmentLength * olet.position
+
+        editValue = formatFeetInches(inches: distanceFromStart)
+        editMeasurementType = nil  // O'lets don't have measurement types
+        editingOletSegment = segmentIndex
+        editingOletId = oletId
+        editingSegment = nil  // Clear segment editing
+        showingKeypad = true
+    }
+
     func applyEdit() {
+        // Check if we're editing an o'let
+        if let segmentIndex = editingOletSegment,
+           let oletId = editingOletId,
+           segmentIndex < pipePoints.count,
+           let oletIndex = pipePoints[segmentIndex].olets.firstIndex(where: { $0.id == oletId }) {
+
+            // Parse the new distance from start
+            if let newDistanceInches = parseMeasurement(editValue), newDistanceInches > 0 {
+                // Calculate segment length
+                let segmentEndPoint: CGPoint? = {
+                    if let branchPoint = pipePoints.first(where: { $0.branchParentId == pipePoints[segmentIndex].id }) {
+                        return branchPoint.position
+                    } else if segmentIndex + 1 < pipePoints.count && pipePoints[segmentIndex + 1].branchParentId == nil {
+                        return pipePoints[segmentIndex + 1].position
+                    }
+                    return nil
+                }()
+
+                guard let endPoint = segmentEndPoint else {
+                    editingOletSegment = nil
+                    editingOletId = nil
+                    return
+                }
+
+                let dx = endPoint.x - pipePoints[segmentIndex].position.x
+                let dy = endPoint.y - pipePoints[segmentIndex].position.y
+                let segmentLength = sqrt(dx * dx + dy * dy) / scale
+
+                // Calculate new position (0.0 to 1.0)
+                var newPosition = CGFloat(newDistanceInches) / segmentLength
+
+                // Clamp to valid range (2 inches from each end)
+                let minClearance: CGFloat = 2.0  // 2 inches minimum from joint
+                let minPosition = minClearance / segmentLength
+                let maxPosition = (segmentLength - minClearance) / segmentLength
+                newPosition = max(minPosition, min(maxPosition, newPosition))
+
+                // Update o'let position
+                pipePoints[segmentIndex].olets[oletIndex].position = newPosition
+            }
+
+            editingOletSegment = nil
+            editingOletId = nil
+            saveSpool()
+            return
+        }
+
+        // Otherwise, handle segment editing
         guard let segment = editingSegment,
               segment < pipePoints.count - 1 else {
             editingSegment = nil
@@ -1099,8 +1319,42 @@ struct SpoolDetailView: View {
             let lastPoint = pipePoints.last!.position
             let snappedPoint = snapToAngle(from: lastPoint, toward: location)
             pipePoints.append(PipePoint(position: snappedPoint))
+
+            // Auto-detect fitting type for the previous point (if it creates a turn)
+            autoDetectFittingForPreviousPoint()
         }
         saveSpool()
+    }
+
+    func autoDetectFittingForPreviousPoint() {
+        // Need at least 3 points to detect a turn
+        guard pipePoints.count >= 3 else { return }
+
+        let checkIndex = pipePoints.count - 2  // The point before the one we just added
+
+        // Skip if user manually set a fitting (don't override manual choices)
+        guard pipePoints[checkIndex].fittingType == .none else { return }
+
+        // Skip if it's a branch point
+        guard pipePoints[checkIndex].branchParentId == nil else { return }
+
+        // Calculate turn angle
+        let prevPoint = pipePoints[checkIndex - 1].position
+        let currentPoint = pipePoints[checkIndex].position
+        let nextPoint = pipePoints[checkIndex + 1].position
+
+        let incomingAngle = calculateSegmentAngle(from: prevPoint, to: currentPoint)
+        let outgoingAngle = calculateSegmentAngle(from: currentPoint, to: nextPoint)
+        let turn = calculateTurnAngle(incomingAngle: incomingAngle, outgoingAngle: outgoingAngle)
+
+        print("  🔍 Auto-detect point \(checkIndex+1): incoming=\(String(format: "%.1f", incomingAngle))°, outgoing=\(String(format: "%.1f", outgoingAngle))°, turn=\(String(format: "%.1f", turn))°")
+
+        // Auto-set fitting type based on turn angle
+        let detectedType = detectElbowType(turnAngle: turn)
+        if detectedType != .none {
+            pipePoints[checkIndex].fittingType = detectedType
+            print("  ✅ Auto-set point \(checkIndex+1) to \(detectedType)")
+        }
     }
 
     func createBranchFromTee(at index: Int) {
@@ -1146,13 +1400,36 @@ struct SpoolDetailView: View {
 
     func addOletToSegment(at segmentIndex: Int, tapLocation: CGPoint) {
         print("🔵 addOletToSegment called: segment=\(segmentIndex), location=\(tapLocation)")
-        guard segmentIndex < pipePoints.count - 1 else {
-            print("🔴 Guard failed: segmentIndex >= pipePoints.count - 1")
-            return
-        }
 
-        let startPoint = pipePoints[segmentIndex].position
-        let endPoint = pipePoints[segmentIndex + 1].position
+        // Determine if this is a branch segment
+        // For branch segments, segmentIndex is the branch point (end), not the parent (start)
+        let isBranchSegment = segmentIndex < pipePoints.count && pipePoints[segmentIndex].branchParentId != nil
+
+        let actualSegmentIndex: Int
+        let startPoint: CGPoint
+        let endPoint: CGPoint
+
+        if isBranchSegment {
+            // This is a branch segment - find the parent point
+            guard let parentId = pipePoints[segmentIndex].branchParentId,
+                  let parentIndex = pipePoints.firstIndex(where: { $0.id == parentId }) else {
+                print("🔴 Failed to find parent for branch segment")
+                return
+            }
+            actualSegmentIndex = parentIndex
+            startPoint = pipePoints[parentIndex].position
+            endPoint = pipePoints[segmentIndex].position
+            print("🔵 Branch segment detected: parent=\(parentIndex), branch=\(segmentIndex)")
+        } else {
+            // This is a main run segment
+            guard segmentIndex < pipePoints.count - 1 else {
+                print("🔴 Guard failed: segmentIndex >= pipePoints.count - 1")
+                return
+            }
+            actualSegmentIndex = segmentIndex
+            startPoint = pipePoints[segmentIndex].position
+            endPoint = pipePoints[segmentIndex + 1].position
+        }
 
         // Calculate position along segment (0.0 to 1.0)
         let dx = endPoint.x - startPoint.x
@@ -1167,26 +1444,36 @@ struct SpoolDetailView: View {
         let dotProduct = (tapDx * dx + tapDy * dy)
         var position = dotProduct / (segmentLength * segmentLength)
 
-        // Clamp position to segment bounds (0.1 to 0.9 to avoid endpoints)
-        position = max(0.1, min(0.9, position))
+        // Clamp position to segment bounds (2 inches from each end)
+        let segmentLengthInches = sqrt(dx * dx + dy * dy) / scale
+        let minClearance: CGFloat = 2.0  // 2 inches minimum from joint
+        let minPosition = minClearance / segmentLengthInches
+        let maxPosition = (segmentLengthInches - minClearance) / segmentLengthInches
+        position = max(minPosition, min(maxPosition, position))
 
         // Create new o'let with default settings
         let newOlet = Olet(
             position: position,
             orientation: 90,  // Default upward
-            size: pipePoints[segmentIndex].pipeSize  // Match pipe size by default
+            size: pipePoints[actualSegmentIndex].pipeSize  // Match pipe size by default
         )
 
-        // Add o'let to the segment
-        pipePoints[segmentIndex].olets.append(newOlet)
+        // Add o'let to the correct segment (start point for both main and branch segments)
+        pipePoints[actualSegmentIndex].olets.append(newOlet)
+        print("🟢 O'let added to pipePoints[\(actualSegmentIndex)].olets, count now: \(pipePoints[actualSegmentIndex].olets.count)")
+
+        // Set picker state BEFORE showing it
+        selectedOletSegment = actualSegmentIndex
+        selectedOletId = newOlet.id
+        print("🟢 State set: segment=\(actualSegmentIndex), id=\(newOlet.id)")
+
+        // Save the updated pipePoints
+        saveSpool()
+        print("🟢 Spool saved")
 
         // Show picker to configure the o'let
-        selectedOletSegment = segmentIndex
-        selectedOletId = newOlet.id
-        print("🟢 O'let added: segment=\(segmentIndex), id=\(newOlet.id), showing picker")
         showingOletPicker = true
-        print("🟢 showingOletPicker = \(showingOletPicker)")
-        saveSpool()
+        print("🟢 Picker shown, showingOletPicker=\(showingOletPicker)")
     }
 
     func snapToAngle(from start: CGPoint, toward target: CGPoint) -> CGPoint {
@@ -1221,6 +1508,153 @@ struct SpoolDetailView: View {
         return diff
     }
 
+    /// Get the sequential identifier for an o'let (e.g., "O1", "O2", etc.)
+    func oletIdentifier(segmentIndex: Int, oletIndex: Int) -> String {
+        var count = 1
+
+        for (pointIndex, point) in pipePoints.enumerated() {
+            for (oIndex, _) in point.olets.enumerated() {
+                if pointIndex == segmentIndex && oIndex == oletIndex {
+                    return "O\(count)"
+                }
+                count += 1
+            }
+        }
+
+        return "O?"
+    }
+
+    // Helper: Calculate the angle of a segment in degrees
+    private func calculateSegmentAngle(from start: CGPoint, to end: CGPoint) -> CGFloat {
+        let dx = end.x - start.x
+        let dy = end.y - start.y
+        var angle = atan2(-dy, dx) * 180 / .pi
+        if angle < 0 { angle += 360 }
+        return angle
+    }
+
+    // Helper: Calculate the turn angle at a point between two segments
+    private func calculateTurnAngle(incomingAngle: CGFloat, outgoingAngle: CGFloat) -> CGFloat {
+        var diff = outgoingAngle - incomingAngle
+        // Normalize to -180 to 180
+        while diff > 180 { diff -= 360 }
+        while diff < -180 { diff += 360 }
+        return abs(diff)
+    }
+
+    // Helper: Determine elbow type from turn angle
+    private func detectElbowType(turnAngle: CGFloat) -> FittingType {
+        // In isometric view with 6 directions (30°, 90°, 150°, 210°, 270°, 330°),
+        // ANY direction change represents a 90° elbow in 3D space.
+        // The isometric grid directions are 60° apart.
+        //
+        // Possible turn angles after normalization:
+        // - 60° (1 step between adjacent isometric directions)
+        // - 120° (2 steps)
+        // - 180° (3 steps - U-turn)
+
+        // Small angles (< 10°) are straight runs, not elbows
+        if turnAngle < 10 {
+            return .none
+        }
+
+        // 60° turn (±10° tolerance) - adjacent isometric directions
+        if turnAngle >= 50 && turnAngle <= 70 {
+            print("🔧 60° turn → 90° Elbow")
+            return .elbow90
+        }
+
+        // 120° turn (±10° tolerance) - 2 steps between directions
+        if turnAngle >= 110 && turnAngle <= 130 {
+            print("🔧 120° turn → 90° Elbow")
+            return .elbow90
+        }
+
+        // 180° turn (±10° tolerance) - U-turn (opposite directions)
+        if turnAngle >= 170 && turnAngle <= 190 {
+            print("🔧 180° turn → 90° Elbow")
+            return .elbow90
+        }
+
+        // Shouldn't happen in isometric, but treat any other turn as an elbow
+        print("🔧 Unexpected turn angle \(turnAngle)° → 90° Elbow")
+        return .elbow90
+    }
+
+    // Detect and set all elbows in the current drawing
+    func detectAllElbows() {
+        guard pipePoints.count >= 3 else {
+            print("🔍 detectAllElbows: Not enough points (\(pipePoints.count))")
+            return
+        }
+
+        print("🔍 detectAllElbows: Checking \(pipePoints.count) points...")
+
+        // Check each middle point (not first or last)
+        for i in 1..<(pipePoints.count - 1) {
+            // Skip if user manually set a fitting (don't override)
+            if pipePoints[i].fittingType != .none {
+                print("  Point \(i+1): Skipping (already has fitting: \(pipePoints[i].fittingType))")
+                continue
+            }
+
+            // Skip if it's a branch point
+            guard pipePoints[i].branchParentId == nil else {
+                print("  Point \(i+1): Skipping (branch point)")
+                continue
+            }
+
+            // Skip if next point is a branch (this point ends the main run)
+            guard i + 1 < pipePoints.count && pipePoints[i + 1].branchParentId == nil else {
+                print("  Point \(i+1): Skipping (next point is branch)")
+                continue
+            }
+
+            // Calculate turn angle
+            let prevPoint = pipePoints[i - 1].position
+            let currentPoint = pipePoints[i].position
+            let nextPoint = pipePoints[i + 1].position
+
+            let incomingAngle = calculateSegmentAngle(from: prevPoint, to: currentPoint)
+            let outgoingAngle = calculateSegmentAngle(from: currentPoint, to: nextPoint)
+            let turn = calculateTurnAngle(incomingAngle: incomingAngle, outgoingAngle: outgoingAngle)
+
+            print("  Point \(i+1): incoming=\(String(format: "%.1f", incomingAngle))°, outgoing=\(String(format: "%.1f", outgoingAngle))°, turn=\(String(format: "%.1f", turn))°")
+
+            // Auto-set fitting type based on turn angle
+            let detectedType = detectElbowType(turnAngle: turn)
+            if detectedType != .none {
+                pipePoints[i].fittingType = detectedType
+                print("  ✅ Set point \(i+1) to \(detectedType)")
+            } else {
+                print("  ➡️ Point \(i+1) is straight run")
+            }
+        }
+    }
+
+    // Check if a point is a directional turn (not a straight run)
+    private func isPointATurn(at index: Int) -> Bool {
+        // Need points before and after to check for a turn
+        guard index > 0 && index < pipePoints.count - 1 else { return false }
+
+        // Skip branch points
+        guard pipePoints[index].branchParentId == nil else { return false }
+
+        // Check if next point is a branch
+        guard index + 1 < pipePoints.count && pipePoints[index + 1].branchParentId == nil else { return false }
+
+        let prevPoint = pipePoints[index - 1].position
+        let currentPoint = pipePoints[index].position
+        let nextPoint = pipePoints[index + 1].position
+
+        let incomingAngle = calculateSegmentAngle(from: prevPoint, to: currentPoint)
+        let outgoingAngle = calculateSegmentAngle(from: currentPoint, to: nextPoint)
+        let turn = calculateTurnAngle(incomingAngle: incomingAngle, outgoingAngle: outgoingAngle)
+
+        // If turn angle is >= 10°, it's a directional turn
+        return turn >= 10
+    }
+
     func directionLabel(from start: CGPoint, to end: CGPoint) -> String {
         let dx = end.x - start.x
         let dy = end.y - start.y
@@ -1235,6 +1669,14 @@ struct SpoolDetailView: View {
         if angleDifference(angle, 270) < tolerance { return "Down" }
         if angleDifference(angle, 330) < tolerance { return "SW" }
         return ""
+    }
+
+    func indexToLetter(_ index: Int) -> String {
+        let letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        if index < letters.count {
+            return String(letters[letters.index(letters.startIndex, offsetBy: index)])
+        }
+        return "\(index + 1)"
     }
 
     var formattedTotal: String {

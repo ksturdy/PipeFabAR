@@ -11,7 +11,6 @@ import SwiftUI
 struct WorkPackageCard: View {
     @Bindable var workPackage: WorkPackage
     @Bindable var project: Project
-    @State private var navigateToDetail = false
 
     var statusColor: Color {
         switch workPackage.status {
@@ -24,9 +23,7 @@ struct WorkPackageCard: View {
     }
 
     var body: some View {
-        Button {
-            navigateToDetail = true
-        } label: {
+        NavigationLink(destination: WorkPackageDetailView(workPackage: workPackage, project: project)) {
             VStack(alignment: .leading, spacing: 12) {
                 // Header
                 HStack {
@@ -63,9 +60,6 @@ struct WorkPackageCard: View {
             .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
         }
         .buttonStyle(.plain)
-        .navigationDestination(isPresented: $navigateToDetail) {
-            WorkPackageDetailView(workPackage: workPackage, project: project)
-        }
     }
 }
 

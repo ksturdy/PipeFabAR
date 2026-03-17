@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- App Store distribution method -->
+	<key>method</key>
+	<string>app-store</string>
+
+	<!-- Your Team ID -->
+	<key>teamID</key>
+	<string>JVQ9659L8L</string>
+
+	<!-- Upload to App Store Connect -->
+	<key>uploadBitcode</key>
+	<false/>
+	<key>uploadSymbols</key>
+	<true/>
+
+	<!-- Automatic signing -->
+	<key>signingStyle</key>
+	<string>automatic</string>
+
+	<!-- Destination (App Store) -->
+	<key>destination</key>
+	<string>upload</string>
+
+	<!-- Generate app size report -->
+	<key>generateAppStoreInformation</key>
+	<true/>
+
+	<!-- Provisioning profile specifier (automatic) -->
+	<key>provisioningProfiles</key>
+	<dict>
+		<key>com.missionintegratedsystems.pipefabar</key>
+		<string>match AppStore com.missionintegratedsystems.pipefabar</string>
+	</dict>
+
+	<!-- Signing certificate -->
+	<key>signingCertificate</key>
+	<string>Apple Distribution</string>
+
+	<!-- Strip Swift symbols -->
+	<key>compileBitcode</key>
+	<false/>
+
+	<!-- Manage app version and build number -->
+	<key>manageAppVersionAndBuildNumber</key>
+	<false/>
+</dict>
+</plist>

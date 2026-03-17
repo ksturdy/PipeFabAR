@@ -22,6 +22,8 @@ struct ContentView: View {
     @State private var selectedOletSegment: Int? = nil  // Segment index
     @State private var selectedOletId: UUID? = nil  // O'let ID for editing
     @State private var showingOletPicker: Bool = false
+    @State private var editingOletSegment: Int? = nil  // Segment containing the o'let being edited
+    @State private var editingOletId: UUID? = nil  // ID of o'let being edited
 
     // Fitting selection
     @State private var selectedPointIndex: Int? = nil
@@ -53,6 +55,26 @@ struct ContentView: View {
     // NW=30°, Up=90°, NE=150°, SE=210°, Down=270°, SW=330°
     let allowedAngles: [CGFloat] = [30, 90, 150, 210, 270, 330]
 
+    // Computed property for o'let title
+    var oletTitle: String? {
+        guard let segmentIndex = editingOletSegment,
+              let oletId = editingOletId else {
+            return nil
+        }
+
+        // Find the o'let identifier
+        var count = 1
+        for (pointIndex, point) in pipePoints.enumerated() {
+            for (oIndex, olet) in point.olets.enumerated() {
+                if pointIndex == segmentIndex && olet.id == oletId {
+                    return "O\(count) Location"
+                }
+                count += 1
+            }
+        }
+        return "O'let Location"
+    }
+
     var body: some View {
         Group {
             if horizontalSizeClass == .regular {
@@ -68,9 +90,13 @@ struct ContentView: View {
                 value: $editValue,
                 measurementType: $editMeasurementType,
                 segmentNumber: (editingSegment ?? 0) + 1,
+                title: editingOletId != nil ? oletTitle : nil,
+                showMeasurementType: editingOletId == nil,  // Hide measurement type for o'lets
                 onCancel: {
                     showingKeypad = false
                     editingSegment = nil
+                    editingOletSegment = nil
+                    editingOletId = nil
                 },
                 onSubmit: {
                     applyEdit()
@@ -80,11 +106,30 @@ struct ContentView: View {
             .presentationDetents([.height(500)])
         }
         .sheet(isPresented: $showingFittingPicker) {
+            let pointIndex = selectedPointIndex ?? 0
+            let isTurn = selectedPointIndex != nil ? isPointATurn(at: selectedPointIndex!) : false
+            let currentType = selectedPointIndex != nil ? pipePoints[selectedPointIndex!].fittingType : .none
+
+            // If it's a turn and currently .none, auto-detect the proper type
+            let displayedType: FittingType = {
+                if isTurn && currentType == .none, let index = selectedPointIndex {
+                    let prevPoint = pipePoints[index - 1].position
+                    let currentPoint = pipePoints[index].position
+                    let nextPoint = pipePoints[index + 1].position
+                    let incomingAngle = calculateSegmentAngle(from: prevPoint, to: currentPoint)
+                    let outgoingAngle = calculateSegmentAngle(from: currentPoint, to: nextPoint)
+                    let turn = calculateTurnAngle(incomingAngle: incomingAngle, outgoingAngle: outgoingAngle)
+                    return detectElbowType(turnAngle: turn)
+                }
+                return currentType
+            }()
+
             FittingTypePicker(
-                selectedType: selectedPointIndex != nil ? pipePoints[selectedPointIndex!].fittingType : .none,
+                selectedType: displayedType,
                 selectedOrientation: selectedPointIndex != nil ? pipePoints[selectedPointIndex!].fittingOrientation : nil,
-                pointNumber: (selectedPointIndex ?? 0) + 1,
+                pointNumber: pointIndex + 1,
                 isEndPoint: selectedPointIndex == 0 || selectedPointIndex == pipePoints.count - 1,
+                isTurnPoint: isTurn,
                 onSelect: { fittingType, orientation in
                     if let index = selectedPointIndex {
                         pipePoints[index].fittingType = fittingType
@@ -123,15 +168,39 @@ struct ContentView: View {
                 let oletIndex = pipePoints[segmentIndex].olets.firstIndex(where: { $0.id == oletId })
                 let olet = oletIndex != nil ? pipePoints[segmentIndex].olets[oletIndex!] : nil
 
+                // Calculate segment angle to filter invalid o'let orientations
+                let segmentAngle: CGFloat? = {
+                    guard segmentIndex < pipePoints.count - 1 else { return nil }
+                    let start = pipePoints[segmentIndex].position
+                    let end = pipePoints[segmentIndex + 1].position
+                    let dx = end.x - start.x
+                    let dy = end.y - start.y
+                    return atan2(dy, dx) * 180 / .pi
+                }()
+
+                // Calculate segment length
+                let segmentLength: CGFloat = {
+                    guard segmentIndex < pipePoints.count - 1 else { return 100.0 }
+                    let start = pipePoints[segmentIndex].position
+                    let end = pipePoints[segmentIndex + 1].position
+                    let dx = end.x - start.x
+                    let dy = end.y - start.y
+                    return sqrt(dx * dx + dy * dy) / scale
+                }()
+
                 OletPicker(
                     selectedType: olet?.type ?? .weldolet,
                     selectedOrientation: olet?.orientation ?? 90,
                     selectedSize: olet?.size ?? pipePoints[segmentIndex].pipeSize,
-                    onSelect: { type, orientation, size in
+                    selectedPosition: olet?.position ?? 0.5,
+                    segmentLength: segmentLength,
+                    segmentAngle: segmentAngle,
+                    onSelect: { type, orientation, size, position in
                         if let oIndex = pipePoints[segmentIndex].olets.firstIndex(where: { $0.id == oletId }) {
                             pipePoints[segmentIndex].olets[oIndex].type = type
                             pipePoints[segmentIndex].olets[oIndex].orientation = orientation
                             pipePoints[segmentIndex].olets[oIndex].size = size
+                            pipePoints[segmentIndex].olets[oIndex].position = position
                         }
                         showingOletPicker = false
                         selectedOletSegment = nil
@@ -161,6 +230,10 @@ struct ContentView: View {
                 onDismiss: { showingBOM = false }
             )
             .presentationDetents([.large])
+        }
+        .onAppear {
+            // Auto-detect elbows in any existing drawing
+            detectAllElbows()
         }
     }
 
@@ -499,6 +572,7 @@ struct ContentView: View {
                         segmentEnd: pipePoints[i + 1].position,
                         zoomScale: zoomScale,
                         scale: scale,
+                        identifier: oletIdentifier(segmentIndex: i, oletIndex: oletIndex),
                         dimensionLabelOffset: $pipePoints[i].olets[oletIndex].dimensionLabelOffset,
                         isDraggingAnyLabel: $isDraggingLabel,
                         onTap: {
@@ -507,9 +581,7 @@ struct ContentView: View {
                             showingOletPicker = true
                         },
                         onTapDimension: {
-                            selectedOletSegment = i
-                            selectedOletId = pipePoints[i].olets[oletIndex].id
-                            showingOletPicker = true
+                            startEditingOlet(segmentIndex: i, oletId: pipePoints[i].olets[oletIndex].id)
                         }
                     )
                 }
@@ -527,6 +599,7 @@ struct ContentView: View {
                         segmentEnd: pipePoint.position,
                         zoomScale: zoomScale,
                         scale: scale,
+                        identifier: oletIdentifier(segmentIndex: parentIndex, oletIndex: oletIndex),
                         dimensionLabelOffset: $pipePoints[parentIndex].olets[oletIndex].dimensionLabelOffset,
                         isDraggingAnyLabel: $isDraggingLabel,
                         onTap: {
@@ -535,9 +608,7 @@ struct ContentView: View {
                             showingOletPicker = true
                         },
                         onTapDimension: {
-                            selectedOletSegment = parentIndex
-                            selectedOletId = pipePoints[parentIndex].olets[oletIndex].id
-                            showingOletPicker = true
+                            startEditingOlet(segmentIndex: parentIndex, oletId: pipePoints[parentIndex].olets[oletIndex].id)
                         }
                     )
                 }
@@ -594,7 +665,8 @@ struct ContentView: View {
                             midpoint: midpoint,
                             zoomScale: zoomScale,
                             segmentBubbleOffset: $pipePoints[i].segmentBubbleOffset,
-                            isDraggingAnyLabel: $isDraggingLabel
+                            isDraggingAnyLabel: $isDraggingLabel,
+                            onTap: { }
                         )
                     }
                 }
@@ -642,7 +714,8 @@ struct ContentView: View {
                             midpoint: midpoint,
                             zoomScale: zoomScale,
                             segmentBubbleOffset: $pipePoints[index].branchSegmentBubbleOffset,
-                            isDraggingAnyLabel: $isDraggingLabel
+                            isDraggingAnyLabel: $isDraggingLabel,
+                            onTap: { }
                         )
                     }
                 }
@@ -766,7 +839,64 @@ struct ContentView: View {
         showingKeypad = true
     }
 
+    func startEditingOlet(segmentIndex: Int, oletId: UUID) {
+        guard segmentIndex < pipePoints.count,
+              let oletIndex = pipePoints[segmentIndex].olets.firstIndex(where: { $0.id == oletId }) else {
+            return
+        }
+
+        let olet = pipePoints[segmentIndex].olets[oletIndex]
+
+        // Calculate segment length (simple case for ContentView - always next point)
+        guard segmentIndex + 1 < pipePoints.count else { return }
+
+        let dx = pipePoints[segmentIndex + 1].position.x - pipePoints[segmentIndex].position.x
+        let dy = pipePoints[segmentIndex + 1].position.y - pipePoints[segmentIndex].position.y
+        let segmentLength = sqrt(dx * dx + dy * dy) / scale
+        let distanceFromStart = segmentLength * olet.position
+
+        editValue = formatFeetInches(inches: distanceFromStart)
+        editMeasurementType = nil  // O'lets don't have measurement types
+        editingOletSegment = segmentIndex
+        editingOletId = oletId
+        editingSegment = nil  // Clear segment editing
+        showingKeypad = true
+    }
+
     func applyEdit() {
+        // Check if we're editing an o'let
+        if let segmentIndex = editingOletSegment,
+           let oletId = editingOletId,
+           segmentIndex < pipePoints.count,
+           let oletIndex = pipePoints[segmentIndex].olets.firstIndex(where: { $0.id == oletId }) {
+
+            // Parse the new distance from start
+            if let newDistanceInches = parseMeasurement(editValue), newDistanceInches > 0,
+               segmentIndex + 1 < pipePoints.count {
+
+                let dx = pipePoints[segmentIndex + 1].position.x - pipePoints[segmentIndex].position.x
+                let dy = pipePoints[segmentIndex + 1].position.y - pipePoints[segmentIndex].position.y
+                let segmentLength = sqrt(dx * dx + dy * dy) / scale
+
+                // Calculate new position (0.0 to 1.0)
+                var newPosition = CGFloat(newDistanceInches) / segmentLength
+
+                // Clamp to valid range (2 inches from each end)
+                let minClearance: CGFloat = 2.0  // 2 inches minimum from joint
+                let minPosition = minClearance / segmentLength
+                let maxPosition = (segmentLength - minClearance) / segmentLength
+                newPosition = max(minPosition, min(maxPosition, newPosition))
+
+                // Update o'let position
+                pipePoints[segmentIndex].olets[oletIndex].position = newPosition
+            }
+
+            editingOletSegment = nil
+            editingOletId = nil
+            return
+        }
+
+        // Otherwise, handle segment editing
         guard let segment = editingSegment,
               segment < pipePoints.count - 1 else {
             editingSegment = nil
@@ -935,7 +1065,171 @@ struct ContentView: View {
             let lastPoint = pipePoints.last!.position
             let snappedPoint = snapToAngle(from: lastPoint, toward: location)
             pipePoints.append(PipePoint(position: snappedPoint))
+
+            // Auto-detect fitting type for the previous point (if it creates a turn)
+            autoDetectFittingForPreviousPoint()
         }
+    }
+
+    func autoDetectFittingForPreviousPoint() {
+        // Need at least 3 points to detect a turn
+        guard pipePoints.count >= 3 else { return }
+
+        let checkIndex = pipePoints.count - 2  // The point before the one we just added
+
+        // Skip if user manually set a fitting (don't override manual choices)
+        guard pipePoints[checkIndex].fittingType == .none else { return }
+
+        // Skip if it's a branch point
+        guard pipePoints[checkIndex].branchParentId == nil else { return }
+
+        // Calculate turn angle
+        let prevPoint = pipePoints[checkIndex - 1].position
+        let currentPoint = pipePoints[checkIndex].position
+        let nextPoint = pipePoints[checkIndex + 1].position
+
+        let incomingAngle = calculateSegmentAngle(from: prevPoint, to: currentPoint)
+        let outgoingAngle = calculateSegmentAngle(from: currentPoint, to: nextPoint)
+        let turn = calculateTurnAngle(incomingAngle: incomingAngle, outgoingAngle: outgoingAngle)
+
+        // Auto-set fitting type based on turn angle
+        let detectedType = detectElbowType(turnAngle: turn)
+        if detectedType != .none {
+            pipePoints[checkIndex].fittingType = detectedType
+        }
+    }
+
+    // Detect and set all elbows in the current drawing
+    func detectAllElbows() {
+        guard pipePoints.count >= 3 else {
+            print("🔍 detectAllElbows: Not enough points (\(pipePoints.count))")
+            return
+        }
+
+        print("🔍 detectAllElbows: Checking \(pipePoints.count) points...")
+
+        // Check each middle point (not first or last)
+        for i in 1..<(pipePoints.count - 1) {
+            // Skip if user manually set a fitting (don't override)
+            if pipePoints[i].fittingType != .none {
+                print("  Point \(i+1): Skipping (already has fitting: \(pipePoints[i].fittingType))")
+                continue
+            }
+
+            // Skip if it's a branch point
+            guard pipePoints[i].branchParentId == nil else {
+                print("  Point \(i+1): Skipping (branch point)")
+                continue
+            }
+
+            // Skip if next point is a branch (this point ends the main run)
+            guard i + 1 < pipePoints.count && pipePoints[i + 1].branchParentId == nil else {
+                print("  Point \(i+1): Skipping (next point is branch)")
+                continue
+            }
+
+            // Calculate turn angle
+            let prevPoint = pipePoints[i - 1].position
+            let currentPoint = pipePoints[i].position
+            let nextPoint = pipePoints[i + 1].position
+
+            let incomingAngle = calculateSegmentAngle(from: prevPoint, to: currentPoint)
+            let outgoingAngle = calculateSegmentAngle(from: currentPoint, to: nextPoint)
+            let turn = calculateTurnAngle(incomingAngle: incomingAngle, outgoingAngle: outgoingAngle)
+
+            print("  Point \(i+1): incoming=\(String(format: "%.1f", incomingAngle))°, outgoing=\(String(format: "%.1f", outgoingAngle))°, turn=\(String(format: "%.1f", turn))°")
+
+            // Auto-set fitting type based on turn angle
+            let detectedType = detectElbowType(turnAngle: turn)
+            if detectedType != .none {
+                pipePoints[i].fittingType = detectedType
+                print("  ✅ Set point \(i+1) to \(detectedType)")
+            } else {
+                print("  ➡️ Point \(i+1) is straight run")
+            }
+        }
+    }
+
+    // Helper: Calculate the angle of a segment in degrees
+    private func calculateSegmentAngle(from start: CGPoint, to end: CGPoint) -> CGFloat {
+        let dx = end.x - start.x
+        let dy = end.y - start.y
+        var angle = atan2(-dy, dx) * 180 / .pi
+        if angle < 0 { angle += 360 }
+        return angle
+    }
+
+    // Helper: Calculate the turn angle at a point between two segments
+    private func calculateTurnAngle(incomingAngle: CGFloat, outgoingAngle: CGFloat) -> CGFloat {
+        var diff = outgoingAngle - incomingAngle
+        // Normalize to -180 to 180
+        while diff > 180 { diff -= 360 }
+        while diff < -180 { diff += 360 }
+        return abs(diff)
+    }
+
+    // Helper: Determine elbow type from turn angle
+    private func detectElbowType(turnAngle: CGFloat) -> FittingType {
+        // In isometric view with 6 directions (30°, 90°, 150°, 210°, 270°, 330°),
+        // ANY direction change represents a 90° elbow in 3D space.
+        // The isometric grid directions are 60° apart.
+        //
+        // Possible turn angles after normalization:
+        // - 60° (1 step between adjacent isometric directions)
+        // - 120° (2 steps)
+        // - 180° (3 steps - U-turn)
+        //
+        // With tolerance for rounding: ~55-65°, ~115-125°, ~175-185°
+
+        // Small angles (< 10°) are straight runs, not elbows
+        if turnAngle < 10 {
+            return .none
+        }
+
+        // 60° turn (±10° tolerance) - adjacent isometric directions
+        if turnAngle >= 50 && turnAngle <= 70 {
+            print("🔧 60° turn → 90° Elbow")
+            return .elbow90
+        }
+
+        // 120° turn (±10° tolerance) - 2 steps between directions
+        if turnAngle >= 110 && turnAngle <= 130 {
+            print("🔧 120° turn → 90° Elbow")
+            return .elbow90
+        }
+
+        // 180° turn (±10° tolerance) - U-turn (opposite directions)
+        if turnAngle >= 170 && turnAngle <= 190 {
+            print("🔧 180° turn → 90° Elbow")
+            return .elbow90
+        }
+
+        // Shouldn't happen in isometric, but treat any other turn as an elbow
+        print("🔧 Unexpected turn angle \(turnAngle)° → 90° Elbow")
+        return .elbow90
+    }
+
+    // Check if a point is a directional turn (not a straight run)
+    private func isPointATurn(at index: Int) -> Bool {
+        // Need points before and after to check for a turn
+        guard index > 0 && index < pipePoints.count - 1 else { return false }
+
+        // Skip branch points
+        guard pipePoints[index].branchParentId == nil else { return false }
+
+        // Check if next point is a branch
+        guard index + 1 < pipePoints.count && pipePoints[index + 1].branchParentId == nil else { return false }
+
+        let prevPoint = pipePoints[index - 1].position
+        let currentPoint = pipePoints[index].position
+        let nextPoint = pipePoints[index + 1].position
+
+        let incomingAngle = calculateSegmentAngle(from: prevPoint, to: currentPoint)
+        let outgoingAngle = calculateSegmentAngle(from: currentPoint, to: nextPoint)
+        let turn = calculateTurnAngle(incomingAngle: incomingAngle, outgoingAngle: outgoingAngle)
+
+        // If turn angle is >= 10°, it's a directional turn
+        return turn >= 10
     }
 
     func createBranchFromTee(at index: Int) {
@@ -977,10 +1271,30 @@ struct ContentView: View {
     }
 
     func addOletToSegment(at segmentIndex: Int, tapLocation: CGPoint) {
-        guard segmentIndex < pipePoints.count - 1 else { return }
+        // Determine if this is a branch segment
+        // For branch segments, segmentIndex is the branch point (end), not the parent (start)
+        let isBranchSegment = segmentIndex < pipePoints.count && pipePoints[segmentIndex].branchParentId != nil
 
-        let startPoint = pipePoints[segmentIndex].position
-        let endPoint = pipePoints[segmentIndex + 1].position
+        let actualSegmentIndex: Int
+        let startPoint: CGPoint
+        let endPoint: CGPoint
+
+        if isBranchSegment {
+            // This is a branch segment - find the parent point
+            guard let parentId = pipePoints[segmentIndex].branchParentId,
+                  let parentIndex = pipePoints.firstIndex(where: { $0.id == parentId }) else {
+                return
+            }
+            actualSegmentIndex = parentIndex
+            startPoint = pipePoints[parentIndex].position
+            endPoint = pipePoints[segmentIndex].position
+        } else {
+            // This is a main run segment
+            guard segmentIndex < pipePoints.count - 1 else { return }
+            actualSegmentIndex = segmentIndex
+            startPoint = pipePoints[segmentIndex].position
+            endPoint = pipePoints[segmentIndex + 1].position
+        }
 
         // Calculate position along segment (0.0 to 1.0)
         let dx = endPoint.x - startPoint.x
@@ -995,21 +1309,25 @@ struct ContentView: View {
         let dotProduct = (tapDx * dx + tapDy * dy)
         var position = dotProduct / (segmentLength * segmentLength)
 
-        // Clamp position to segment bounds (0.1 to 0.9 to avoid endpoints)
-        position = max(0.1, min(0.9, position))
+        // Clamp position to segment bounds (2 inches from each end)
+        let segmentLengthInches = sqrt(dx * dx + dy * dy) / scale
+        let minClearance: CGFloat = 2.0  // 2 inches minimum from joint
+        let minPosition = minClearance / segmentLengthInches
+        let maxPosition = (segmentLengthInches - minClearance) / segmentLengthInches
+        position = max(minPosition, min(maxPosition, position))
 
         // Create new o'let with default settings
         let newOlet = Olet(
             position: position,
             orientation: 90,  // Default upward
-            size: pipePoints[segmentIndex].pipeSize  // Match pipe size by default
+            size: pipePoints[actualSegmentIndex].pipeSize  // Match pipe size by default
         )
 
-        // Add o'let to the segment
-        pipePoints[segmentIndex].olets.append(newOlet)
+        // Add o'let to the correct segment (start point for both main and branch segments)
+        pipePoints[actualSegmentIndex].olets.append(newOlet)
 
         // Show picker to configure the o'let
-        selectedOletSegment = segmentIndex
+        selectedOletSegment = actualSegmentIndex
         selectedOletId = newOlet.id
         showingOletPicker = true
         oletModeEnabled = false
@@ -1045,6 +1363,22 @@ struct ContentView: View {
         var diff = abs(a - b)
         if diff > 180 { diff = 360 - diff }
         return diff
+    }
+
+    /// Get the sequential identifier for an o'let (e.g., "O1", "O2", etc.)
+    func oletIdentifier(segmentIndex: Int, oletIndex: Int) -> String {
+        var count = 1
+
+        for (pointIndex, point) in pipePoints.enumerated() {
+            for (oIndex, _) in point.olets.enumerated() {
+                if pointIndex == segmentIndex && oIndex == oletIndex {
+                    return "O\(count)"
+                }
+                count += 1
+            }
+        }
+
+        return "O?"
     }
 
     func directionLabel(from start: CGPoint, to end: CGPoint) -> String {
@@ -1148,8 +1482,20 @@ struct MeasurementKeypad: View {
     @Binding var value: String
     @Binding var measurementType: String?
     let segmentNumber: Int
+    let title: String?  // Optional custom title (for o'lets, etc.)
+    let showMeasurementType: Bool  // Whether to show measurement type selector
     let onCancel: () -> Void
     let onSubmit: () -> Void
+
+    init(value: Binding<String>, measurementType: Binding<String?>, segmentNumber: Int, title: String? = nil, showMeasurementType: Bool = true, onCancel: @escaping () -> Void, onSubmit: @escaping () -> Void) {
+        self._value = value
+        self._measurementType = measurementType
+        self.segmentNumber = segmentNumber
+        self.title = title
+        self.showMeasurementType = showMeasurementType
+        self.onCancel = onCancel
+        self.onSubmit = onSubmit
+    }
 
     var body: some View {
         VStack(spacing: 12) {
@@ -1158,7 +1504,7 @@ struct MeasurementKeypad: View {
                 Button("Cancel") { onCancel() }
                     .foregroundColor(.red)
                 Spacer()
-                Text("Segment \(segmentNumber)")
+                Text(title ?? "Segment \(segmentNumber)")
                     .font(.headline)
                 Spacer()
                 Button("Save") { onSubmit() }
@@ -1166,13 +1512,14 @@ struct MeasurementKeypad: View {
             }
             .padding(.horizontal)
 
-            // Measurement Type Selector
-            HStack(spacing: 8) {
-                Text("Measurement Type:")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+            // Measurement Type Selector (only for segments)
+            if showMeasurementType {
+                HStack(spacing: 8) {
+                    Text("Measurement Type:")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
 
-                ForEach(["F-C", "E-C", "C-C"], id: \.self) { type in
+                    ForEach(["F-C", "E-C", "C-C"], id: \.self) { type in
                     let isSelected = measurementType == type
                     Button(action: {
                         measurementType = type
@@ -1188,6 +1535,7 @@ struct MeasurementKeypad: View {
                 }
             }
             .padding(.horizontal)
+            }
 
             // Display
             VStack(spacing: 4) {
@@ -1620,23 +1968,10 @@ struct PointMarkerView: View {
                                 .stroke(isDraggingBubble ? Color.orange : Color.clear, lineWidth: 2)
                         )
 
-                    if fittingType != .none {
-                        if fittingType == .tee, let orientation = fittingOrientation {
-                            // Rotated tee symbol with branch indicator
-                            Text(fittingType.symbol)
-                                .font(.system(size: 12, weight: .bold))
-                                .foregroundColor(.white)
-                                .rotationEffect(.degrees(orientation - 90))  // Normalize to 0° = right
-                        } else {
-                            Text(fittingType.symbol)
-                                .font(.system(size: 12, weight: .bold))
-                                .foregroundColor(.white)
-                        }
-                    } else {
-                        Text("\(index + 1)")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundColor(.white)
-                    }
+                    // Always show point number
+                    Text("\(index + 1)")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(.white)
                 }
 
                 if fittingType != .none {
@@ -1651,8 +1986,11 @@ struct PointMarkerView: View {
                 x: position.x + actualBubbleOffset.width,
                 y: position.y + actualBubbleOffset.height
             )
-            .highPriorityGesture(
-                DragGesture(minimumDistance: 5)
+            .onTapGesture {
+                onTap()
+            }
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 8)
                     .onChanged { drag in
                         if !isDraggingBubble {
                             isDraggingBubble = true
@@ -1669,9 +2007,6 @@ struct PointMarkerView: View {
                         isDraggingAnyLabel = false
                     }
             )
-            .onTapGesture {
-                onTap()
-            }
         }
     }
 }
@@ -1684,6 +2019,7 @@ struct SegmentBubbleView: View {
     let zoomScale: CGFloat
     @Binding var segmentBubbleOffset: CGSize?
     @Binding var isDraggingAnyLabel: Bool
+    let onTap: () -> Void
 
     @State private var isDraggingBubble = false
     @State private var dragStartOffset: CGSize = .zero
@@ -1740,8 +2076,11 @@ struct SegmentBubbleView: View {
                 x: midpoint.x + actualBubbleOffset.width,
                 y: midpoint.y + actualBubbleOffset.height
             )
-            .highPriorityGesture(
-                DragGesture(minimumDistance: 5)
+            .onTapGesture {
+                onTap()
+            }
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 8)
                     .onChanged { drag in
                         if !isDraggingBubble {
                             isDraggingBubble = true
@@ -1769,6 +2108,7 @@ struct FittingTypePicker: View {
     let selectedOrientation: CGFloat?
     let pointNumber: Int
     let isEndPoint: Bool  // true if first or last point
+    let isTurnPoint: Bool  // true if this point is a directional turn
     let onSelect: (FittingType, CGFloat?) -> Void
     let onCancel: () -> Void
 
@@ -1778,11 +2118,12 @@ struct FittingTypePicker: View {
     // Fittings only allowed at end points (caps can't be in middle of pipe run)
     let endPointOnlyFittings: [FittingType] = [.cap]
 
-    init(selectedType: FittingType, selectedOrientation: CGFloat? = nil, pointNumber: Int, isEndPoint: Bool, onSelect: @escaping (FittingType, CGFloat?) -> Void, onCancel: @escaping () -> Void) {
+    init(selectedType: FittingType, selectedOrientation: CGFloat? = nil, pointNumber: Int, isEndPoint: Bool, isTurnPoint: Bool = false, onSelect: @escaping (FittingType, CGFloat?) -> Void, onCancel: @escaping () -> Void) {
         self.selectedType = selectedType
         self.selectedOrientation = selectedOrientation
         self.pointNumber = pointNumber
         self.isEndPoint = isEndPoint
+        self.isTurnPoint = isTurnPoint
         self.onSelect = onSelect
         self.onCancel = onCancel
         self._tempSelectedType = State(initialValue: selectedType)
@@ -1790,12 +2131,19 @@ struct FittingTypePicker: View {
     }
 
     var availableFittings: [FittingType] {
-        if isEndPoint {
-            return FittingType.allCases
-        } else {
+        var fittings = FittingType.allCases
+
+        if !isEndPoint {
             // Filter out fittings that can only be at end points
-            return FittingType.allCases.filter { !endPointOnlyFittings.contains($0) }
+            fittings = fittings.filter { !endPointOnlyFittings.contains($0) }
         }
+
+        if isTurnPoint {
+            // Turn points cannot be set to .none - they must have a fitting
+            fittings = fittings.filter { $0 != .none }
+        }
+
+        return fittings
     }
 
     var body: some View {
@@ -2023,6 +2371,7 @@ struct BillOfMaterialsView: View {
         let pipeSize: PipeSize
         let outletSize: PipeSize
         let segmentIndex: Int
+        let identifier: String  // Sequential identifier like "O1", "O2", etc.
     }
 
     // Calculate the angle of a segment in degrees
@@ -2151,6 +2500,7 @@ struct BillOfMaterialsView: View {
 
     var oletItems: [OletItem] {
         var items: [OletItem] = []
+        var count = 1
 
         for (index, point) in pipePoints.enumerated() {
             let pipeSize = point.pipeSize
@@ -2160,8 +2510,10 @@ struct BillOfMaterialsView: View {
                     oletType: olet.type,
                     pipeSize: pipeSize,
                     outletSize: olet.size,
-                    segmentIndex: index
+                    segmentIndex: index,
+                    identifier: "O\(count)"
                 ))
+                count += 1
             }
         }
 
@@ -2259,8 +2611,18 @@ struct BillOfMaterialsView: View {
                                 }
 
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(item.oletType.rawValue)
-                                        .font(.body)
+                                    HStack(spacing: 6) {
+                                        Text(item.identifier)
+                                            .font(.caption)
+                                            .fontWeight(.semibold)
+                                            .foregroundColor(.white)
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 2)
+                                            .background(Color.purple)
+                                            .cornerRadius(4)
+                                        Text(item.oletType.rawValue)
+                                            .font(.body)
+                                    }
                                     Text("Segment \(item.segmentIndex + 1)")
                                         .font(.caption)
                                         .foregroundColor(.secondary)
@@ -2374,6 +2736,7 @@ struct OletMarkerView: View {
     let segmentEnd: CGPoint
     let zoomScale: CGFloat
     let scale: CGFloat
+    let identifier: String  // O'let identifier (e.g., "O1", "O2")
     @Binding var dimensionLabelOffset: CGSize?
     @Binding var isDraggingAnyLabel: Bool
     let onTap: () -> Void
@@ -2440,36 +2803,55 @@ struct OletMarkerView: View {
                 .stroke(Color.gray.opacity(0.5), lineWidth: 1)
             }
 
-            // O'let symbol (tappable)
-            ZStack {
-                Circle()
-                    .fill(Color.white)
-                    .frame(width: 24, height: 24)
+            // O'let symbol with identifier (tappable)
+            VStack(spacing: 2) {
+                ZStack {
+                    Circle()
+                        .fill(Color.white)
+                        .frame(width: 24, height: 24)
 
-                Circle()
-                    .stroke(Color.purple, lineWidth: 2)
-                    .frame(width: 24, height: 24)
+                    Circle()
+                        .stroke(Color.purple, lineWidth: 2)
+                        .frame(width: 24, height: 24)
 
-                Text(olet.type.symbol)
-                    .font(.system(size: 16))
-                    .fontWeight(.bold)
+                    Text(olet.type.symbol)
+                        .font(.system(size: 16))
+                        .fontWeight(.bold)
+                        .foregroundColor(.purple)
+                }
+
+                // O'let identifier label
+                Text(identifier)
+                    .font(.system(size: 8, weight: .semibold))
                     .foregroundColor(.purple)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 1)
+                    .background(Color.white.opacity(0.9))
+                    .cornerRadius(3)
             }
+            .scaleEffect(1 / zoomScale)
             .position(position)
             .onTapGesture {
                 onTap()
             }
 
-            // Orientation indicator (arrow)
+            // Orientation indicator (arrow) - uses absolute coordinates
             Path { path in
+                let oletRadius: CGFloat = 12  // Half of the 24pt circle
                 let arrowLength: CGFloat = 20
-                let arrowAngle = segmentAngle + olet.orientation
+                let arrowAngle = olet.orientation
                 let radians = arrowAngle * .pi / 180
 
-                let endX = arrowLength * cos(radians)
-                let endY = arrowLength * sin(radians)
+                // Start from edge of olet circle (absolute coordinates)
+                // Note: Y increases downward in iOS, so we subtract sin to make 90° point UP
+                let startX = position.x + oletRadius * cos(radians)
+                let startY = position.y - oletRadius * sin(radians)
 
-                path.move(to: .zero)
+                // End further out (absolute coordinates)
+                let endX = position.x + (oletRadius + arrowLength) * cos(radians)
+                let endY = position.y - (oletRadius + arrowLength) * sin(radians)
+
+                path.move(to: CGPoint(x: startX, y: startY))
                 path.addLine(to: CGPoint(x: endX, y: endY))
 
                 // Arrow head
@@ -2480,17 +2862,16 @@ struct OletMarkerView: View {
                 path.move(to: CGPoint(x: endX, y: endY))
                 path.addLine(to: CGPoint(
                     x: endX + headLength * cos(headAngle1),
-                    y: endY + headLength * sin(headAngle1)
+                    y: endY - headLength * sin(headAngle1)
                 ))
 
                 path.move(to: CGPoint(x: endX, y: endY))
                 path.addLine(to: CGPoint(
                     x: endX + headLength * cos(headAngle2),
-                    y: endY + headLength * sin(headAngle2)
+                    y: endY - headLength * sin(headAngle2)
                 ))
             }
             .stroke(Color.purple, lineWidth: 2)
-            .position(position)
 
             // Dimension label - draggable and tappable
             Text(formatFeetInches(inches: distanceFromStart))
@@ -2635,28 +3016,63 @@ struct OletPicker: View {
     let selectedType: OletType
     let selectedOrientation: CGFloat
     let selectedSize: PipeSize
-    let onSelect: (OletType, CGFloat, PipeSize) -> Void
+    let selectedPosition: CGFloat  // Position along segment (0.0 to 1.0)
+    let segmentLength: CGFloat  // Segment length in inches
+    let segmentAngle: CGFloat?  // Angle of the pipe segment (nil if not provided)
+    let onSelect: (OletType, CGFloat, PipeSize, CGFloat) -> Void
     let onDelete: () -> Void
     let onCancel: () -> Void
 
     @State private var currentType: OletType
     @State private var currentOrientation: CGFloat
     @State private var currentSize: PipeSize
+    @State private var currentPosition: CGFloat
+    @State private var positionText: String
     @State private var showingDeleteConfirmation: Bool = false
 
-    // Isometric angles for o'let orientation
-    let allowedAngles: [CGFloat] = [30, 90, 150, 210, 270, 330]
+    // All isometric angles
+    let allIsometricAngles: [CGFloat] = [30, 90, 150, 210, 270, 330]
 
-    init(selectedType: OletType, selectedOrientation: CGFloat, selectedSize: PipeSize, onSelect: @escaping (OletType, CGFloat, PipeSize) -> Void, onDelete: @escaping () -> Void, onCancel: @escaping () -> Void) {
+    // Valid angles for o'let (excluding angles aligned with pipe run)
+    var allowedAngles: [CGFloat] {
+        guard let segAngle = segmentAngle else {
+            return allIsometricAngles  // If no segment angle provided, allow all
+        }
+
+        // Normalize segment angle to 0-360
+        let normalizedAngle = segAngle.truncatingRemainder(dividingBy: 360)
+        let positiveAngle = normalizedAngle < 0 ? normalizedAngle + 360 : normalizedAngle
+
+        // Find closest isometric angle to segment direction
+        let closestAngle = allIsometricAngles.min(by: { abs($0 - positiveAngle) < abs($1 - positiveAngle) }) ?? 0
+
+        // Calculate opposite angle
+        let oppositeAngle = (closestAngle + 180).truncatingRemainder(dividingBy: 360)
+
+        // Filter out the segment direction and its opposite
+        return allIsometricAngles.filter { angle in
+            angle != closestAngle && angle != oppositeAngle
+        }
+    }
+
+    init(selectedType: OletType, selectedOrientation: CGFloat, selectedSize: PipeSize, selectedPosition: CGFloat, segmentLength: CGFloat, segmentAngle: CGFloat? = nil, onSelect: @escaping (OletType, CGFloat, PipeSize, CGFloat) -> Void, onDelete: @escaping () -> Void, onCancel: @escaping () -> Void) {
         self.selectedType = selectedType
         self.selectedOrientation = selectedOrientation
         self.selectedSize = selectedSize
+        self.selectedPosition = selectedPosition
+        self.segmentLength = segmentLength
+        self.segmentAngle = segmentAngle
         self.onSelect = onSelect
         self.onDelete = onDelete
         self.onCancel = onCancel
         _currentType = State(initialValue: selectedType)
         _currentOrientation = State(initialValue: selectedOrientation)
         _currentSize = State(initialValue: selectedSize)
+        _currentPosition = State(initialValue: selectedPosition)
+
+        // Initialize positionText with formatted distance
+        let distanceInches = selectedPosition * segmentLength
+        _positionText = State(initialValue: formatFeetInches(inches: distanceInches))
     }
 
     var body: some View {
@@ -2708,12 +3124,12 @@ struct OletPicker: View {
                                         .stroke(currentOrientation == angle ? Color.purple : Color.gray, lineWidth: 2)
                                         .frame(width: 50, height: 50)
 
-                                    // Arrow showing direction
+                                    // Arrow showing direction (isometric coordinates)
                                     Path { path in
                                         let radians = angle * .pi / 180
                                         let length: CGFloat = 18
                                         let endX = length * cos(radians)
-                                        let endY = length * sin(radians)
+                                        let endY = -length * sin(radians)  // Negative for isometric (90° = up)
 
                                         path.move(to: .zero)
                                         path.addLine(to: CGPoint(x: endX, y: endY))
@@ -2726,13 +3142,13 @@ struct OletPicker: View {
                                         path.move(to: CGPoint(x: endX, y: endY))
                                         path.addLine(to: CGPoint(
                                             x: endX + headLength * cos(headAngle1),
-                                            y: endY + headLength * sin(headAngle1)
+                                            y: endY - headLength * sin(headAngle1)
                                         ))
 
                                         path.move(to: CGPoint(x: endX, y: endY))
                                         path.addLine(to: CGPoint(
                                             x: endX + headLength * cos(headAngle2),
-                                            y: endY + headLength * sin(headAngle2)
+                                            y: endY - headLength * sin(headAngle2)
                                         ))
                                     }
                                     .stroke(currentOrientation == angle ? Color.purple : Color.gray, lineWidth: 2)
@@ -2748,6 +3164,55 @@ struct OletPicker: View {
                         }
                     }
                     .padding(.vertical, 8)
+                }
+
+                Section(header: Text("Position Along Segment")) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Text("Distance from start:")
+                                .foregroundColor(.secondary)
+                            Spacer()
+                            TextField("Distance", text: $positionText)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 120)
+                                .multilineTextAlignment(.trailing)
+                                .keyboardType(.decimalPad)
+                                .onChange(of: positionText) { _, newValue in
+                                    updatePositionFromText(newValue)
+                                }
+                        }
+
+                        Text("Segment length: \(formatFeetInches(inches: segmentLength))")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+
+                        // Slider for visual adjustment
+                        VStack(alignment: .leading, spacing: 4) {
+                            let minClearance: CGFloat = 2.0  // 2 inches minimum from joint
+                            let minPosition = minClearance / segmentLength
+                            let maxPosition = (segmentLength - minClearance) / segmentLength
+
+                            Slider(value: $currentPosition, in: minPosition...maxPosition, step: 0.01)
+                                .onChange(of: currentPosition) { _, newValue in
+                                    let distanceInches = newValue * segmentLength
+                                    positionText = formatFeetInches(inches: distanceInches)
+                                }
+                            HStack {
+                                Text("2\"")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                                Text("Center")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                                Text("\(formatFeetInches(inches: segmentLength - minClearance))")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .padding(.top, 4)
+                    }
                 }
             }
             .navigationTitle("Configure O'let")
@@ -2766,7 +3231,7 @@ struct OletPicker: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") {
-                        onSelect(currentType, currentOrientation, currentSize)
+                        onSelect(currentType, currentOrientation, currentSize, currentPosition)
                     }
                     .fontWeight(.bold)
                 }
@@ -2780,6 +3245,53 @@ struct OletPicker: View {
                 Text("This will remove the o'let from the pipe segment.")
             }
         }
+    }
+
+    // Helper function to parse text input and update position
+    private func updatePositionFromText(_ text: String) {
+        // Parse feet and inches from text
+        let inches = parseDimension(text)
+        guard inches > 0 else { return }
+
+        // Convert to position (0.0 to 1.0)
+        var newPosition = inches / segmentLength
+
+        // Clamp to valid range (2 inches from each end)
+        let minClearance: CGFloat = 2.0  // 2 inches minimum from joint
+        let minPosition = minClearance / segmentLength
+        let maxPosition = (segmentLength - minClearance) / segmentLength
+        newPosition = max(minPosition, min(maxPosition, newPosition))
+
+        currentPosition = newPosition
+    }
+
+    // Parse dimension text like "1'-6\"" or "18\"" or "1.5" to inches
+    private func parseDimension(_ text: String) -> CGFloat {
+        var workingText = text.trimmingCharacters(in: .whitespaces)
+
+        // Remove quotes if present
+        workingText = workingText.replacingOccurrences(of: "\"", with: "")
+        workingText = workingText.replacingOccurrences(of: "'", with: "-")
+
+        var totalInches: Double = 0
+
+        if workingText.contains("-") {
+            // Format: feet-inches or feet'inches
+            let parts = workingText.split(separator: "-")
+            if let feet = Double(parts[0]) {
+                totalInches = feet * 12
+            }
+            if parts.count > 1, let inches = Double(parts[1]) {
+                totalInches += inches
+            }
+        } else {
+            // Simple decimal inches
+            if let inches = Double(workingText) {
+                totalInches = inches
+            }
+        }
+
+        return CGFloat(totalInches)
     }
 }
 

@@ -213,6 +213,7 @@ struct SpoolPrintableView: View {
 
             pipeSegmentsForPrint
             pointMarkersForPrint
+            oletMarkersForPrint
         }
         .frame(width: geo.size.width, height: geo.size.height)
         .scaleEffect(drawingZoomScale, anchor: .center)
@@ -383,6 +384,50 @@ struct SpoolPrintableView: View {
         }
     }
 
+    @ViewBuilder
+    private var oletMarkersForPrint: some View {
+        // O'lets on main run segments
+        ForEach(0..<max(0, pipePoints.count - 1), id: \.self) { i in
+            if pipePoints[i + 1].branchParentId == nil {
+                ForEach(Array(pipePoints[i].olets.indices), id: \.self) { oletIndex in
+                    OletMarkerView(
+                        olet: pipePoints[i].olets[oletIndex],
+                        segmentStart: pipePoints[i].position,
+                        segmentEnd: pipePoints[i + 1].position,
+                        zoomScale: drawingZoomScale,
+                        scale: scale,
+                        identifier: oletIdentifier(segmentIndex: i, oletIndex: oletIndex),
+                        dimensionLabelOffset: .constant(pipePoints[i].olets[oletIndex].dimensionLabelOffset),
+                        isDraggingAnyLabel: .constant(false),
+                        onTap: {},
+                        onTapDimension: {}
+                    )
+                }
+            }
+        }
+
+        // O'lets on branch segments
+        ForEach(Array(pipePoints.enumerated()), id: \.offset) { index, pipePoint in
+            if let parentId = pipePoint.branchParentId,
+               let parentIndex = pipePoints.firstIndex(where: { $0.id == parentId }) {
+                ForEach(Array(pipePoints[parentIndex].olets.indices), id: \.self) { oletIndex in
+                    OletMarkerView(
+                        olet: pipePoints[parentIndex].olets[oletIndex],
+                        segmentStart: pipePoints[parentIndex].position,
+                        segmentEnd: pipePoint.position,
+                        zoomScale: drawingZoomScale,
+                        scale: scale,
+                        identifier: oletIdentifier(segmentIndex: parentIndex, oletIndex: oletIndex),
+                        dimensionLabelOffset: .constant(pipePoints[parentIndex].olets[oletIndex].dimensionLabelOffset),
+                        isDraggingAnyLabel: .constant(false),
+                        onTap: {},
+                        onTapDimension: {}
+                    )
+                }
+            }
+        }
+    }
+
     private var logoOverlay: some View {
         VStack {
             Spacer()
@@ -411,6 +456,16 @@ struct SpoolPrintableView: View {
         let id = UUID()
         let pipeSize: PipeSize
         let totalLength: CGFloat
+    }
+
+    // O'let item for BOM
+    struct OletItem: Identifiable {
+        let id = UUID()
+        let oletType: OletType
+        let pipeSize: PipeSize
+        let outletSize: PipeSize
+        let segmentIndex: Int
+        let identifier: String  // Sequential identifier like "O1", "O2", etc.
     }
 
     var fittingItems: [FittingItem] {
@@ -489,6 +544,44 @@ struct SpoolPrintableView: View {
 
     var totalPipeLength: CGFloat {
         pipeLengthItems.reduce(0) { $0 + $1.totalLength }
+    }
+
+    var oletItems: [OletItem] {
+        var items: [OletItem] = []
+        var count = 1
+
+        for (index, point) in pipePoints.enumerated() {
+            let pipeSize = point.pipeSize
+
+            for olet in point.olets {
+                items.append(OletItem(
+                    oletType: olet.type,
+                    pipeSize: pipeSize,
+                    outletSize: olet.size,
+                    segmentIndex: index,
+                    identifier: "O\(count)"
+                ))
+                count += 1
+            }
+        }
+
+        return items
+    }
+
+    /// Get the sequential identifier for an o'let (e.g., "O1", "O2", etc.)
+    func oletIdentifier(segmentIndex: Int, oletIndex: Int) -> String {
+        var count = 1
+
+        for (pointIndex, point) in pipePoints.enumerated() {
+            for (oIndex, _) in point.olets.enumerated() {
+                if pointIndex == segmentIndex && oIndex == oletIndex {
+                    return "O\(count)"
+                }
+                count += 1
+            }
+        }
+
+        return "O?"
     }
 
     func segmentAngle(from start: CGPoint, to end: CGPoint) -> CGFloat {
@@ -702,6 +795,46 @@ struct SpoolPrintableView: View {
                                 .padding(.vertical, 1)
                                 .padding(.horizontal, 4)
                                 .background(Color.blue.opacity(0.05))
+
+                                // O'let rows (if any on this segment)
+                                ForEach(Array(point.olets.enumerated()), id: \.offset) { oletIdx, olet in
+                                    HStack(spacing: 3) {
+                                        // O'let identifier tag (purple badge)
+                                        Text(oletIdentifier(segmentIndex: index, oletIndex: oletIdx))
+                                            .font(.system(size: 6, weight: .bold))
+                                            .foregroundColor(.white)
+                                            .padding(.horizontal, 4)
+                                            .padding(.vertical, 2)
+                                            .background(Color.purple)
+                                            .cornerRadius(3)
+                                            .frame(width: 24, alignment: .center)
+
+                                        // O'let description
+                                        Text(olet.type.rawValue)
+                                            .font(.system(size: 7))
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                                        // O'let size (pipe × outlet)
+                                        Text("\(point.pipeSize.shortName)×\(olet.size.shortName)")
+                                            .font(.system(size: 7))
+                                            .frame(width: 26, alignment: .center)
+
+                                        // Empty type field
+                                        Text("—")
+                                            .font(.system(size: 7))
+                                            .frame(width: 28, alignment: .center)
+                                            .foregroundColor(.secondary)
+
+                                        // Empty length field
+                                        Text("—")
+                                            .font(.system(size: 7))
+                                            .frame(width: 38, alignment: .trailing)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    .padding(.vertical, 1)
+                                    .padding(.horizontal, 4)
+                                    .background(Color.purple.opacity(0.05))
+                                }
                             }
 
                             if index < pipePoints.count - 1 {

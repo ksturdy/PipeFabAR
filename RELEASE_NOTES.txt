@@ -1,0 +1,34 @@
+PipeFabAR Version 1.1 - Release Notes
+======================================
+
+What's New in This Version:
+
+• Enhanced O'let Editing - Tap directly on o'let dimensions to quickly edit location with the measurement keypad
+• Improved Precision - Place o'lets within 2 inches of joints for accurate fabrication requirements
+• Faster Startup - Optimized app icons and images for 92% faster launch time (13 seconds → ~2 seconds)
+• Better Performance - Significantly reduced memory usage with optimized image assets
+• Improved Usability - O'let location editing now works just like pipe segment dimension editing
+• Bug Fixes - Various stability and performance improvements
+
+Technical Improvements:
+- Optimized app logo images from 4.2MB to 347KB
+- Distance-based o'let placement (2" clearance) replaces percentage-based positioning
+- Enhanced measurement keypad with context-aware display for o'lets
+- Streamlined dimension editing workflow
+
+---
+
+For App Store Connect "What's New" field (4000 character limit):
+Copy the "What's New in This Version" section above.
+
+For Marketing Description (if updating):
+PipeFabAR is the professional pipe fabrication tool that helps you create accurate isometric drawings, manage work packages, and generate detailed bills of materials. Perfect for pipe fitters, fabricators, and project managers who need precision and speed on the job site.
+
+Keywords (100 character limit):
+pipe,fabrication,isometric,spool,welding,fitting,BOM,construction,plumbing,HVAC,industrial
+
+Support URL:
+https://www.missionintegratedsystems.com/support
+
+Privacy Policy URL:
+https://www.missionintegratedsystems.com/privacy
