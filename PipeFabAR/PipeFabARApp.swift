@@ -3,12 +3,15 @@ import SwiftData
 
 @main
 struct PipeFabARApp: App {
-    let dataController = DataController.shared
+    @StateObject private var subscriptionManager = SubscriptionManager()
 
     var body: some Scene {
-        WindowGroup {
+        print("⏱ PipeFabARApp.body called \(Date())")
+        return WindowGroup {
             WelcomeView()
-                .modelContainer(dataController.container)
+                .modelContainer(DataController.shared.container)
+                .environmentObject(subscriptionManager)
+                .task { subscriptionManager.start() }
         }
     }
 }

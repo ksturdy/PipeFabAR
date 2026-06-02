@@ -31,20 +31,23 @@ final class SpecificationManager {
 
     /// Creates the default set of pipe specifications
     private func createDefaultSpecifications(in context: ModelContext) {
-        let defaults: [(description: String, abbreviation: String)] = [
-            ("Carbon Steel Schedule 40", "CS SCH 40"),
-            ("Carbon Steel Schedule 80", "CS SCH 80"),
-            ("Stainless Steel Schedule 10", "SS SCH 10"),
-            ("Stainless Steel Schedule 40", "SS SCH 40"),
-            ("PVC Schedule 40", "PVC SCH 40"),
-            ("PVC Schedule 80", "PVC SCH 80"),
-            ("Copper Type K", "CU TYPE K"),
-            ("Copper Type L", "CU TYPE L"),
-            ("Copper Type M", "CU TYPE M")
+        // Fixed UUIDs ensure both devices create identical records when seeding offline.
+        // CloudKit will merge them as the same records rather than producing duplicates.
+        let defaults: [(id: UUID, description: String, abbreviation: String)] = [
+            (UUID(uuidString: "A1000000-0000-0000-0000-000000000001")!, "Carbon Steel Schedule 40", "CS SCH 40"),
+            (UUID(uuidString: "A1000000-0000-0000-0000-000000000002")!, "Carbon Steel Schedule 80", "CS SCH 80"),
+            (UUID(uuidString: "A1000000-0000-0000-0000-000000000003")!, "Stainless Steel Schedule 10", "SS SCH 10"),
+            (UUID(uuidString: "A1000000-0000-0000-0000-000000000004")!, "Stainless Steel Schedule 40", "SS SCH 40"),
+            (UUID(uuidString: "A1000000-0000-0000-0000-000000000005")!, "PVC Schedule 40", "PVC SCH 40"),
+            (UUID(uuidString: "A1000000-0000-0000-0000-000000000006")!, "PVC Schedule 80", "PVC SCH 80"),
+            (UUID(uuidString: "A1000000-0000-0000-0000-000000000007")!, "Copper Type K", "CU TYPE K"),
+            (UUID(uuidString: "A1000000-0000-0000-0000-000000000008")!, "Copper Type L", "CU TYPE L"),
+            (UUID(uuidString: "A1000000-0000-0000-0000-000000000009")!, "Copper Type M", "CU TYPE M")
         ]
 
         for (index, spec) in defaults.enumerated() {
             let specification = PipeSpecification(
+                id: spec.id,
                 specDescription: spec.description,
                 abbreviation: spec.abbreviation,
                 sortOrder: index,

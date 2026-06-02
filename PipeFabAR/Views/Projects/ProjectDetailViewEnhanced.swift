@@ -14,6 +14,9 @@ struct WorkPackagesSectionEnhanced: View {
     @Bindable var project: Project
     @Binding var showingAddSheet: Bool
     @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject var subscriptionManager: SubscriptionManager
+
+    @State private var showingPaywall = false
 
     var body: some View {
         VStack(spacing: 16) {
@@ -25,13 +28,20 @@ struct WorkPackagesSectionEnhanced: View {
                 Spacer()
 
                 Button {
-                    showingAddSheet = true
+                    if project.workPackages.count >= SubscriptionManager.freeWorkPackageLimit && !subscriptionManager.isProSubscriber {
+                        showingPaywall = true
+                    } else {
+                        showingAddSheet = true
+                    }
                 } label: {
                     Image(systemName: "plus.circle.fill")
                         .font(.title3)
                 }
             }
             .padding(.horizontal)
+            .sheet(isPresented: $showingPaywall) {
+                PaywallView().environmentObject(subscriptionManager)
+            }
 
             if project.workPackages.isEmpty {
                 EmptyPackagesView(showingAddSheet: $showingAddSheet)
@@ -78,7 +88,9 @@ struct WorkPackagesSectionEnhanced: View {
 struct UnassignedSpoolsSectionEnhanced: View {
     @Bindable var project: Project
     @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject var subscriptionManager: SubscriptionManager
     @State private var showingCreateSpoolSheet = false
+    @State private var showingPaywall = false
     @State private var selectedSpoolID: UUID? = nil
 
     // Get all spools from project and work packages
@@ -112,7 +124,11 @@ struct UnassignedSpoolsSectionEnhanced: View {
                 Spacer()
 
                 Button {
-                    showingCreateSpoolSheet = true
+                    if project.totalSpoolCount >= SubscriptionManager.freeSpoolLimit && !subscriptionManager.isProSubscriber {
+                        showingPaywall = true
+                    } else {
+                        showingCreateSpoolSheet = true
+                    }
                 } label: {
                     Image(systemName: "plus.circle.fill")
                         .font(.title3)
@@ -135,6 +151,7 @@ struct UnassignedSpoolsSectionEnhanced: View {
                         .multilineTextAlignment(.center)
 
                     Button {
+                        // Empty state only shows when count is 0, always within free limit
                         showingCreateSpoolSheet = true
                     } label: {
                         Text("Create Spool")
@@ -190,6 +207,9 @@ struct UnassignedSpoolsSectionEnhanced: View {
         }
         .sheet(isPresented: $showingCreateSpoolSheet) {
             CreateSpoolSheet(project: project)
+        }
+        .sheet(isPresented: $showingPaywall) {
+            PaywallView().environmentObject(subscriptionManager)
         }
         .navigationDestination(item: Binding(
             get: { selectedSpool },

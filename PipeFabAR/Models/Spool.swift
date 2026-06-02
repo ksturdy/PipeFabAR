@@ -11,7 +11,7 @@ import SwiftData
 /// Individual pipe assembly containing drawing data
 @Model
 final class Spool {
-    @Attribute(.unique) var id: UUID
+    var id: UUID
     var name: String
     var systemType: String? // Reference to SystemType enum raw value
     var status: String // "Draft", "Ready", "Fabricated", "Installed"

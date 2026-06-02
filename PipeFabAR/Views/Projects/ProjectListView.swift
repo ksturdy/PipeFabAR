@@ -12,10 +12,12 @@ import SwiftData
 struct ProjectListView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @EnvironmentObject var subscriptionManager: SubscriptionManager
     @Query(sort: \Project.modifiedDate, order: .reverse) private var projects: [Project]
 
     @State private var showingCreateSheet = false
     @State private var showingSettings = false
+    @State private var showingPaywall = false
     @State private var searchText = ""
 
     var filteredProjects: [Project] {
@@ -78,7 +80,11 @@ struct ProjectListView: View {
             }
             ToolbarItem(placement: .primaryAction) {
                 Button {
-                    showingCreateSheet = true
+                    if projects.count >= SubscriptionManager.freeProjectLimit && !subscriptionManager.isProSubscriber {
+                        showingPaywall = true
+                    } else {
+                        showingCreateSheet = true
+                    }
                 } label: {
                     Label("New Project", systemImage: "plus.circle.fill")
                 }
@@ -89,6 +95,9 @@ struct ProjectListView: View {
         }
         .sheet(isPresented: $showingSettings) {
             PipeSpecificationSettingsView()
+        }
+        .sheet(isPresented: $showingPaywall) {
+            PaywallView().environmentObject(subscriptionManager)
         }
     }
 }

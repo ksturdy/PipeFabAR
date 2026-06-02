@@ -11,7 +11,7 @@ import SwiftData
 /// Pipe material and schedule specification
 @Model
 final class PipeSpecification {
-    @Attribute(.unique) var id: UUID
+    var id: UUID
     var specDescription: String // e.g., "Carbon Steel Schedule 40"
     var abbreviation: String    // e.g., "CS SCH 40"
     var sortOrder: Int          // For custom ordering

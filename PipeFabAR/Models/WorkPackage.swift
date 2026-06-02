@@ -11,7 +11,7 @@ import SwiftData
 /// Work breakdown structure for organizing spools
 @Model
 final class WorkPackage {
-    @Attribute(.unique) var id: UUID
+    var id: UUID
     var name: String
     var packageNumber: String
     var createdDate: Date

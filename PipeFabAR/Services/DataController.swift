@@ -9,30 +9,29 @@ import Foundation
 import SwiftData
 
 /// Manages SwiftData persistence for the app
-@MainActor
 class DataController {
     static let shared = DataController()
     let container: ModelContainer
 
-    init() {
+    private init() {
+        print("⏱ DataController.init START \(Date())")
         let schema = Schema([
             Project.self,
             WorkPackage.self,
             Spool.self,
             PipeSpecification.self
         ])
+        print("⏱ Schema created \(Date())")
 
         let configuration = ModelConfiguration(
             schema: schema,
-            isStoredInMemoryOnly: false,
-            cloudKitDatabase: .none // Future: Enable for iCloud sync
+            isStoredInMemoryOnly: false
         )
+        print("⏱ ModelConfiguration created \(Date())")
 
         do {
             container = try ModelContainer(for: schema, configurations: [configuration])
-            // Ensure default specifications exist
-            let context = container.mainContext
-            SpecificationManager.shared.ensureDefaultSpecifications(in: context)
+            print("⏱ ModelContainer created \(Date())")
         } catch {
             fatalError("Failed to initialize ModelContainer: \(error.localizedDescription)")
         }

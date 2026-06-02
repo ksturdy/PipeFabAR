@@ -17,6 +17,7 @@
 		2F022B33A0CD463E861DB614 /* SpoolDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AE0974641B62ACC2AC3C898 /* SpoolDetailView.swift */; };
 		36CAD9F460657D2902734B7A /* SystemType.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F4A692D1E3EC68C473FAD7A /* SystemType.swift */; };
 		3CA284D331D993448D796849 /* PipeSpecificationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E2DD93FD994A02F77BDF28B /* PipeSpecificationSettingsView.swift */; };
+		4CF5317F8D0F4659B09CB58B /* SubscriptionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BED1CC39FD3C45F291B58E78 /* SubscriptionManager.swift */; };
 		5E43312887D0172E0CAF6F93 /* IsometricRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 740163F9B3DEC579196571A0 /* IsometricRenderer.swift */; };
 		5E955254DA9EBA4A9A1998CB /* WorkPackageSpoolsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAA99E57486426AF3CF785C1 /* WorkPackageSpoolsListView.swift */; };
 		5F83119160B2E7F416FD92E0 /* ProjectDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A4221517E7237392A4AAC52 /* ProjectDetailView.swift */; };
@@ -29,6 +30,7 @@
 		887C277C135B2037707E7C60 /* SpoolPrintableView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 116D971E8874C19BD4A8F276 /* SpoolPrintableView.swift */; };
 		98AF53B2A1343BE8052D231B /* ProjectListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2A2E21BE0A21686219BEB35 /* ProjectListView.swift */; };
 		9A1B2C3D4E5F6A7B8C9D0E1F /* OletType.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6A7B8C9D0E1F2 /* OletType.swift */; };
+		A2B3C4D5E6F7A8B9C0D1E2F3 /* WeldbendCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1C2D3E4F5A6B7C8D9E0F1A2 /* WeldbendCatalog.swift */; };
 		A69200E72021A8BC4B6A88FD /* IsometricFittingShapes.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCC20D7211B5CA38754C5E60 /* IsometricFittingShapes.swift */; };
 		A964EBC85587FC7F4E0CFB72 /* CustomDimensionOverride.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D24D70145D0C21EC51DD1B3 /* CustomDimensionOverride.swift */; };
 		B5F87117E37D5A3A0A25BDA3 /* Color+Hex.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4F736FF3C3A80AEF194CA40 /* Color+Hex.swift */; };
@@ -47,13 +49,13 @@
 		DC3638EAEB3D79B6AE824602 /* ThumbnailGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A376D9BCD8E2E9B6F33BCF0 /* ThumbnailGenerator.swift */; };
 		E2ED6F0CE111E55CCD7FE9D9 /* DataController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D546CA25F9636DCCE77DB4B /* DataController.swift */; };
 		E3CDBCA508661048A0378646 /* Project.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A812DA4B804B29E9559AACC /* Project.swift */; };
+		EC0C85B900064C0FA039C214 /* PaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 668B9C4FBE9740CB9C6B27FA /* PaywallView.swift */; };
 		EFE59758329E48306899D788 /* WorkPackageDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5655A49ECA957C876ECF769D /* WorkPackageDetailView.swift */; };
 		F1CA603446C4AF655A00B8F0 /* Spool.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC35FD89AC04862388F4C516 /* Spool.swift */; };
 		F24429BBC7CD91967D2E50EB /* WorkPackageCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2F326729D72EFC359D78489 /* WorkPackageCard.swift */; };
 		F6C8BF76FF97B432A87C2C49 /* PipeSize.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E43D2A8219977112B3D08CB /* PipeSize.swift */; };
 		F93689ABEE272D6F3E26664B /* PipeFabARApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86CF9CDF20B4EA15971A3242 /* PipeFabARApp.swift */; };
 		FBD001B58CB78E8607AF414A /* ValveDimensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58016E1B5D944F473E9A9912 /* ValveDimensions.swift */; };
-		A2B3C4D5E6F7A8B9C0D1E2F3 /* WeldbendCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1C2D3E4F5A6B7C8D9E0F1A2 /* WeldbendCatalog.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -65,6 +67,8 @@
 		1D546CA25F9636DCCE77DB4B /* DataController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DataController.swift; sourceTree = "<group>"; };
 		1E2DD93FD994A02F77BDF28B /* PipeSpecificationSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PipeSpecificationSettingsView.swift; sourceTree = "<group>"; };
 		1FA1D7022F2E2A41004387C3 /* WelcomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeView.swift; sourceTree = "<group>"; };
+		1FEB04B72F843B150036AB64 /* PipeFabARRelease.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = PipeFabARRelease.entitlements; sourceTree = "<group>"; };
+		1FEB04B82F843BCD0036AB64 /* PipeFabAR.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = PipeFabAR.entitlements; sourceTree = "<group>"; };
 		2A4221517E7237392A4AAC52 /* ProjectDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProjectDetailView.swift; sourceTree = "<group>"; };
 		2CCC83DDF45EDD76F07A08FF /* PipeSpecification.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PipeSpecification.swift; sourceTree = "<group>"; };
 		2DCD8CAC27D6383C7F42C332 /* EditProjectSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EditProjectSheet.swift; sourceTree = "<group>"; };
@@ -78,6 +82,7 @@
 		5A376D9BCD8E2E9B6F33BCF0 /* ThumbnailGenerator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ThumbnailGenerator.swift; sourceTree = "<group>"; };
 		5D24D70145D0C21EC51DD1B3 /* CustomDimensionOverride.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CustomDimensionOverride.swift; path = PipeFabAR/Models/CustomDimensionOverride.swift; sourceTree = "<group>"; };
 		5DDEE0049DF819C52DCB4D39 /* Theme.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		668B9C4FBE9740CB9C6B27FA /* PaywallView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PaywallView.swift; sourceTree = "<group>"; };
 		6AE0974641B62ACC2AC3C898 /* SpoolDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SpoolDetailView.swift; sourceTree = "<group>"; };
 		6DD51860B774D5EF3887CF70 /* PipeDimensions.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PipeDimensions.swift; path = PipeFabAR/Models/PipeDimensions.swift; sourceTree = "<group>"; };
 		740163F9B3DEC579196571A0 /* IsometricRenderer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = IsometricRenderer.swift; path = PipeFabAR/Utilities/IsometricRenderer.swift; sourceTree = "<group>"; };
@@ -92,9 +97,11 @@
 		A2A2E21BE0A21686219BEB35 /* ProjectListView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProjectListView.swift; sourceTree = "<group>"; };
 		A4F736FF3C3A80AEF194CA40 /* Color+Hex.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "Color+Hex.swift"; sourceTree = "<group>"; };
 		AC35FD89AC04862388F4C516 /* Spool.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Spool.swift; sourceTree = "<group>"; };
+		B1C2D3E4F5A6B7C8D9E0F1A2 /* WeldbendCatalog.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WeldbendCatalog.swift; sourceTree = "<group>"; };
 		B2F326729D72EFC359D78489 /* WorkPackageCard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WorkPackageCard.swift; sourceTree = "<group>"; };
 		BBF328A207B3B76E33D74BA5 /* SpecificationManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SpecificationManager.swift; sourceTree = "<group>"; };
 		BC76B47ECD057EE1EE14B461 /* UserProfile.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UserProfile.swift; sourceTree = "<group>"; };
+		BED1CC39FD3C45F291B58E78 /* SubscriptionManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SubscriptionManager.swift; sourceTree = "<group>"; };
 		C3C77DA37700695C373B1804 /* Assets.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		CCC20D7211B5CA38754C5E60 /* IsometricFittingShapes.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = IsometricFittingShapes.swift; path = PipeFabAR/Views/Components/IsometricFittingShapes.swift; sourceTree = "<group>"; };
 		D3877CE86D2533EAF974470F /* ProjectCard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProjectCard.swift; sourceTree = "<group>"; };
@@ -105,7 +112,6 @@
 		EDF44C4F02ACF35D1AB33939 /* CreateProjectSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CreateProjectSheet.swift; sourceTree = "<group>"; };
 		F2B778C187CE1E0551E73958 /* PipePoint.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PipePoint.swift; sourceTree = "<group>"; };
 		F3D10D37F57EC1580D510ABB /* SpoolNamingService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SpoolNamingService.swift; sourceTree = "<group>"; };
-		B1C2D3E4F5A6B7C8D9E0F1A2 /* WeldbendCatalog.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WeldbendCatalog.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -140,6 +146,8 @@
 		301 /* PipeFabAR */ = {
 			isa = PBXGroup;
 			children = (
+				1FEB04B82F843BCD0036AB64 /* PipeFabAR.entitlements */,
+				1FEB04B72F843B150036AB64 /* PipeFabARRelease.entitlements */,
 				800 /* Models */,
 				801 /* Services */,
 				802 /* Views */,
@@ -165,6 +173,7 @@
 			isa = PBXGroup;
 			children = (
 				BBF328A207B3B76E33D74BA5 /* SpecificationManager.swift */,
+				BED1CC39FD3C45F291B58E78 /* SubscriptionManager.swift */,
 			);
 			path = Managers;
 			sourceTree = "<group>";
@@ -212,6 +221,7 @@
 				806 /* WorkPackages */,
 				63FB39D26AC253C355F45544 /* Settings */,
 				FE21165AFE9A80F6FC50E96A /* Components */,
+				FA8E3F8738994492A746C19D /* Subscription */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -268,6 +278,14 @@
 				A4F736FF3C3A80AEF194CA40 /* Color+Hex.swift */,
 			);
 			path = Extensions;
+			sourceTree = "<group>";
+		};
+		FA8E3F8738994492A746C19D /* Subscription */ = {
+			isa = PBXGroup;
+			children = (
+				668B9C4FBE9740CB9C6B27FA /* PaywallView.swift */,
+			);
+			path = Subscription;
 			sourceTree = "<group>";
 		};
 		FE21165AFE9A80F6FC50E96A /* Components */ = {
@@ -394,6 +412,8 @@
 				14186F404FE60A45EB8F9E67 /* FittingDetailView.swift in Sources */,
 				C1D0E13910B7B684EA3F7EBE /* PipeSegmentDetailView.swift in Sources */,
 				A2B3C4D5E6F7A8B9C0D1E2F3 /* WeldbendCatalog.swift in Sources */,
+				4CF5317F8D0F4659B09CB58B /* SubscriptionManager.swift in Sources */,
+				EC0C85B900064C0FA039C214 /* PaywallView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -434,9 +454,10 @@
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_ENTITLEMENTS = PipeFabAR/PipeFabAR.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 5;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = JVQ9659L8L;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -472,7 +493,7 @@
 					"@executable_path/Frameworks",
 				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.2;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -521,9 +542,10 @@
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_ENTITLEMENTS = PipeFabAR/PipeFabARRelease.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 5;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = JVQ9659L8L;
 				ENABLE_NS_ASSERTIONS = NO;
@@ -553,7 +575,7 @@
 					"@executable_path/Frameworks",
 				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.2;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.missionintegratedsystems.pipefab;

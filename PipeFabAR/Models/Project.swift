@@ -11,7 +11,7 @@ import SwiftData
 /// Top-level organizational unit for pipe routing work
 @Model
 final class Project {
-    @Attribute(.unique) var id: UUID
+    var id: UUID
     var name: String
     var jobNumber: String
     var createdDate: Date

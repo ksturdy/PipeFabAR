@@ -15,9 +15,11 @@ struct WorkPackageDetailView: View {
     @Bindable var project: Project
     @Environment(\.modelContext) private var modelContext
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @EnvironmentObject var subscriptionManager: SubscriptionManager
 
     @State private var showingEditSheet = false
     @State private var showingCreateSpoolSheet = false
+    @State private var showingPaywall = false
     @State private var spoolToView: Spool? = nil
     @State private var spoolToEdit: Spool? = nil
     @State private var spoolToMove: Spool? = nil
@@ -78,6 +80,9 @@ struct WorkPackageDetailView: View {
         }
         .sheet(isPresented: $showingCreateSpoolSheet) {
             CreateSpoolSheet(project: project, preselectedWorkPackage: workPackage)
+        }
+        .sheet(isPresented: $showingPaywall) {
+            PaywallView().environmentObject(subscriptionManager)
         }
         .sheet(item: $spoolToMove) { spool in
             MoveSpoolSheet(spool: spool, project: project, currentPackage: workPackage)
@@ -272,7 +277,11 @@ struct WorkPackageDetailView: View {
                 Spacer()
 
                 Button {
-                    showingCreateSpoolSheet = true
+                    if project.totalSpoolCount >= SubscriptionManager.freeSpoolLimit && !subscriptionManager.isProSubscriber {
+                        showingPaywall = true
+                    } else {
+                        showingCreateSpoolSheet = true
+                    }
                 } label: {
                     Label("Add Spool", systemImage: "plus.circle.fill")
                 }
@@ -480,7 +489,11 @@ struct WorkPackageDetailView: View {
                 Spacer()
 
                 Button {
-                    showingCreateSpoolSheet = true
+                    if project.totalSpoolCount >= SubscriptionManager.freeSpoolLimit && !subscriptionManager.isProSubscriber {
+                        showingPaywall = true
+                    } else {
+                        showingCreateSpoolSheet = true
+                    }
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "plus.circle.fill")

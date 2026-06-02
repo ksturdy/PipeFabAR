@@ -9,6 +9,7 @@ import SwiftUI
 
 /// Welcome screen shown when the app first launches
 struct WelcomeView: View {
+    @Environment(\.modelContext) private var modelContext
     @State private var navigateToProjects = false
 
     // Get app version from bundle
@@ -89,6 +90,24 @@ struct WelcomeView: View {
 
                     Spacer()
 
+                    // Disclaimer
+                    Text("PipeFabAR is provided for reference purposes only. Mission Integrated Systems is not responsible for errors in dimensions, specifications, or fabrication results. Always verify measurements and consult qualified professionals before fabrication.")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 24)
+
+                    // Legal Links
+                    HStack(spacing: 12) {
+                        Link("Privacy Policy",
+                             destination: URL(string: "https://www.missionintegratedsystems.com/privacy")!)
+                        Text("·").foregroundColor(.secondary)
+                        Link("Terms of Use",
+                             destination: URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!)
+                    }
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+
                     // Version Info
                     VStack(spacing: 4) {
                         Text("Version \(appVersion)")
@@ -105,6 +124,10 @@ struct WelcomeView: View {
             .navigationDestination(isPresented: $navigateToProjects) {
                 ProjectListView()
             }
+        }
+        .onAppear { print("⏱ WelcomeView appeared \(Date())") }
+        .task {
+            SpecificationManager.shared.ensureDefaultSpecifications(in: modelContext)
         }
     }
 
