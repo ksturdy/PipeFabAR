@@ -11,23 +11,18 @@ import SwiftData
 /// Top-level organizational unit for pipe routing work
 @Model
 final class Project {
-    var id: UUID
-    var name: String
-    var jobNumber: String
-    var createdDate: Date
-    var modifiedDate: Date
-    var color: String // Hex color for visual distinction
+    var id: UUID = UUID()
+    var name: String = ""
+    var jobNumber: String = ""
+    var createdDate: Date = Date()
+    var modifiedDate: Date = Date()
+    var color: String = "#007AFF"
+    var spoolNamingTemplate: String = "{jobNumber}-{packageNumber}-{spoolNumber}"
+    var nextSpoolNumber: Int = 1
 
-    // Naming configuration
-    var spoolNamingTemplate: String // e.g., "{jobNumber}-{packageNumber}-{spoolNumber}"
-    var nextSpoolNumber: Int // Auto-increment counter
-
-    // Pipe specification (default for this project)
-    @Relationship(deleteRule: .nullify) var defaultPipeSpecification: PipeSpecification?
-
-    // Relationships
-    @Relationship(deleteRule: .cascade) var workPackages: [WorkPackage]
-    @Relationship(deleteRule: .cascade) var spools: [Spool] // Unassigned pool
+    @Relationship(deleteRule: .nullify, inverse: \PipeSpecification.projectsUsingAsDefault) var defaultPipeSpecification: PipeSpecification?
+    @Relationship(deleteRule: .cascade) var workPackages: [WorkPackage]?
+    @Relationship(deleteRule: .cascade) var spools: [Spool]?
 
     init(
         id: UUID = UUID(),
@@ -35,12 +30,12 @@ final class Project {
         jobNumber: String,
         createdDate: Date = Date(),
         modifiedDate: Date = Date(),
-        color: String = "#007AFF", // Default iOS blue
+        color: String = "#007AFF",
         spoolNamingTemplate: String = "{jobNumber}-{packageNumber}-{spoolNumber}",
         nextSpoolNumber: Int = 1,
         defaultPipeSpecification: PipeSpecification? = nil,
-        workPackages: [WorkPackage] = [],
-        spools: [Spool] = []
+        workPackages: [WorkPackage]? = [],
+        spools: [Spool]? = []
     ) {
         self.id = id
         self.name = name
@@ -55,14 +50,12 @@ final class Project {
         self.spools = spools
     }
 
-    /// Total number of spools (assigned + unassigned)
     var totalSpoolCount: Int {
-        let assignedCount = workPackages.reduce(0) { $0 + $1.assignedSpools.count }
-        return assignedCount + spools.count
+        let assignedCount = (workPackages ?? []).reduce(0) { $0 + ($1.assignedSpools ?? []).count }
+        return assignedCount + (spools ?? []).count
     }
 
-    /// Total number of work packages
     var workPackageCount: Int {
-        workPackages.count
+        (workPackages ?? []).count
     }
 }

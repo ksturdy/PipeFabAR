@@ -11,20 +11,17 @@ import SwiftData
 /// Work breakdown structure for organizing spools
 @Model
 final class WorkPackage {
-    var id: UUID
-    var name: String
-    var packageNumber: String
-    var createdDate: Date
+    var id: UUID = UUID()
+    var name: String = ""
+    var packageNumber: String = ""
+    var createdDate: Date = Date()
     var dueDate: Date?
-    var status: String // "Not Started", "In Progress", "Review", "Completed"
-    var notes: String
+    var status: String = "Not Started"
+    var notes: String = ""
 
-    // Pipe specification override (nil = inherit from project)
-    @Relationship(deleteRule: .nullify) var pipeSpecificationOverride: PipeSpecification?
-
-    // Relationships
+    @Relationship(deleteRule: .nullify, inverse: \PipeSpecification.workPackageOverrides) var pipeSpecificationOverride: PipeSpecification?
     @Relationship(deleteRule: .nullify, inverse: \Project.workPackages) var project: Project?
-    @Relationship(deleteRule: .nullify) var assignedSpools: [Spool]
+    @Relationship(deleteRule: .nullify) var assignedSpools: [Spool]?
 
     init(
         id: UUID = UUID(),
@@ -36,7 +33,7 @@ final class WorkPackage {
         notes: String = "",
         pipeSpecificationOverride: PipeSpecification? = nil,
         project: Project? = nil,
-        assignedSpools: [Spool] = []
+        assignedSpools: [Spool]? = []
     ) {
         self.id = id
         self.name = name
@@ -50,17 +47,14 @@ final class WorkPackage {
         self.assignedSpools = assignedSpools
     }
 
-    /// Effective pipe specification (override or inherited from project)
     var effectivePipeSpecification: PipeSpecification? {
         pipeSpecificationOverride ?? project?.defaultPipeSpecification
     }
 
-    /// Number of spools assigned to this work package
     var spoolCount: Int {
-        assignedSpools.count
+        (assignedSpools ?? []).count
     }
 
-    /// Status enum for type-safe access
     enum Status: String, CaseIterable {
         case notStarted = "Not Started"
         case inProgress = "In Progress"
@@ -69,10 +63,10 @@ final class WorkPackage {
 
         var color: String {
             switch self {
-            case .notStarted: return "#8E8E93" // Gray
-            case .inProgress: return "#FF9500" // Orange
-            case .review: return "#007AFF" // Blue
-            case .completed: return "#34C759" // Green
+            case .notStarted: return "#8E8E93"
+            case .inProgress: return "#FF9500"
+            case .review: return "#007AFF"
+            case .completed: return "#34C759"
             }
         }
     }

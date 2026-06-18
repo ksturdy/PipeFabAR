@@ -11,26 +11,21 @@ import SwiftData
 /// Individual pipe assembly containing drawing data
 @Model
 final class Spool {
-    var id: UUID
-    var name: String
-    var systemType: String? // Reference to SystemType enum raw value
-    var status: String // "Draft", "Ready", "Fabricated", "Installed"
-    var createdDate: Date
-    var modifiedDate: Date
+    var id: UUID = UUID()
+    var name: String = ""
+    var systemType: String?
+    var status: String = "Draft"
+    var createdDate: Date = Date()
+    var modifiedDate: Date = Date()
+    var pipePointsData: Data = Data()
+    var zoomScale: Double = 1.0
+    var panOffsetWidth: Double = 0.0
+    var panOffsetHeight: Double = 0.0
+    var thumbnailData: Data?
 
-    // Drawing data (encoded [PipePoint])
-    var pipePointsData: Data
-    var zoomScale: Double
-    var panOffsetWidth: Double
-    var panOffsetHeight: Double
-    var thumbnailData: Data? // Cached preview image
-
-    // Pipe specification override (nil = inherit from work package or project)
-    @Relationship(deleteRule: .nullify) var pipeSpecificationOverride: PipeSpecification?
-
-    // Relationships
-    @Relationship(deleteRule: .nullify) var workPackage: WorkPackage?
-    @Relationship(deleteRule: .nullify) var project: Project? // Parent project
+    @Relationship(deleteRule: .nullify, inverse: \PipeSpecification.spoolOverrides) var pipeSpecificationOverride: PipeSpecification?
+    @Relationship(deleteRule: .nullify, inverse: \WorkPackage.assignedSpools) var workPackage: WorkPackage?
+    @Relationship(deleteRule: .nullify, inverse: \Project.spools) var project: Project?
 
     init(
         id: UUID = UUID(),
@@ -64,12 +59,10 @@ final class Spool {
         self.project = project
     }
 
-    /// Effective pipe specification (override > work package > project)
     var effectivePipeSpecification: PipeSpecification? {
         pipeSpecificationOverride ?? workPackage?.effectivePipeSpecification ?? project?.defaultPipeSpecification
     }
 
-    /// Decode pipe points from stored data
     var pipePoints: [PipePoint] {
         get {
             guard !pipePointsData.isEmpty,
@@ -85,18 +78,14 @@ final class Spool {
         }
     }
 
-    /// Pan offset as CGSize for UI convenience
     var panOffset: CGSize {
-        get {
-            CGSize(width: panOffsetWidth, height: panOffsetHeight)
-        }
+        get { CGSize(width: panOffsetWidth, height: panOffsetHeight) }
         set {
             panOffsetWidth = newValue.width
             panOffsetHeight = newValue.height
         }
     }
 
-    /// Status enum for type-safe access
     enum Status: String, CaseIterable {
         case draft = "Draft"
         case ready = "Ready for Fabrication"
@@ -105,10 +94,10 @@ final class Spool {
 
         var color: String {
             switch self {
-            case .draft: return "#8E8E93" // Gray
-            case .ready: return "#34C759" // Green
-            case .fabricated: return "#007AFF" // Blue
-            case .installed: return "#5856D6" // Purple
+            case .draft: return "#8E8E93"
+            case .ready: return "#34C759"
+            case .fabricated: return "#007AFF"
+            case .installed: return "#5856D6"
             }
         }
     }

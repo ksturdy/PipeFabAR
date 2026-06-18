@@ -9,7 +9,10 @@ import SwiftUI
 
 /// Welcome screen shown when the app first launches
 struct WelcomeView: View {
+    @EnvironmentObject private var subscriptionManager: SubscriptionManager
     @State private var navigateToProjects = false
+    @State private var isRestoring = false
+    @State private var restoreMessage: String?
 
     // Get app version from bundle
     var appVersion: String {
@@ -87,6 +90,31 @@ struct WelcomeView: View {
                     }
                     .padding(.top, 8)
 
+                    // Restore Purchases
+                    Button {
+                        Task {
+                            isRestoring = true
+                            await subscriptionManager.restore()
+                            isRestoring = false
+                            if subscriptionManager.isProSubscriber {
+                                restoreMessage = "Your Pro subscription has been restored."
+                            } else {
+                                restoreMessage = "No active subscription found."
+                            }
+                        }
+                    } label: {
+                        if isRestoring {
+                            ProgressView()
+                                .progressViewStyle(.circular)
+                                .frame(height: 20)
+                        } else {
+                            Text("Restore Purchases")
+                                .font(.system(size: 15))
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .disabled(isRestoring)
+
                     Spacer()
 
                     // Disclaimer
@@ -124,6 +152,22 @@ struct WelcomeView: View {
                 ProjectListView()
             }
         }
+        .alert("Restore Purchases", isPresented: Binding(
+            get: { restoreMessage != nil },
+            set: { if !$0 { restoreMessage = nil } }
+        )) {
+            Button("OK") { restoreMessage = nil }
+        } message: {
+            Text(restoreMessage ?? "")
+        }
+        .alert("Purchase Error", isPresented: Binding(
+            get: { subscriptionManager.errorMessage != nil },
+            set: { if !$0 { subscriptionManager.errorMessage = nil } }
+        )) {
+            Button("OK") { subscriptionManager.errorMessage = nil }
+        } message: {
+            Text(subscriptionManager.errorMessage ?? "")
+        }
     }
 
     func sendFeedback() {
@@ -145,4 +189,5 @@ struct WelcomeView: View {
 #Preview {
     WelcomeView()
         .modelContainer(DataController.shared.container)
+        .environmentObject(SubscriptionManager())
 }

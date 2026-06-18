@@ -59,7 +59,7 @@ struct WorkPackageDetailView: View {
                     } label: {
                         Label("Preview Package", systemImage: "doc.richtext")
                     }
-                    .disabled(workPackage.assignedSpools.isEmpty)
+                    .disabled((workPackage.assignedSpools ?? []).isEmpty)
 
                     // Send Package button
                     Button {
@@ -71,7 +71,7 @@ struct WorkPackageDetailView: View {
                     } label: {
                         Label("Send Package", systemImage: "paperplane.fill")
                     }
-                    .disabled(workPackage.assignedSpools.isEmpty)
+                    .disabled((workPackage.assignedSpools ?? []).isEmpty)
                 }
             }
         }
@@ -246,7 +246,7 @@ struct WorkPackageDetailView: View {
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.bordered)
-                    .disabled(workPackage.assignedSpools.isEmpty)
+                    .disabled((workPackage.assignedSpools ?? []).isEmpty)
 
                     Button {
                         if MFMailComposeViewController.canSendMail() {
@@ -259,7 +259,7 @@ struct WorkPackageDetailView: View {
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.bordered)
-                    .disabled(workPackage.assignedSpools.isEmpty)
+                    .disabled((workPackage.assignedSpools ?? []).isEmpty)
                 }
             }
             .padding()
@@ -271,7 +271,7 @@ struct WorkPackageDetailView: View {
         VStack(spacing: 0) {
             // Header
             HStack {
-                Text("Spools (\(workPackage.assignedSpools.count))")
+                Text("Spools (\((workPackage.assignedSpools ?? []).count))")
                     .font(.headline)
 
                 Spacer()
@@ -292,7 +292,7 @@ struct WorkPackageDetailView: View {
             Divider()
 
             // Spool grid
-            if workPackage.assignedSpools.isEmpty {
+            if (workPackage.assignedSpools ?? []).isEmpty {
                 emptySpoolsView()
             } else {
                 ScrollView {
@@ -302,7 +302,7 @@ struct WorkPackageDetailView: View {
                         ],
                         spacing: 16
                     ) {
-                        ForEach(workPackage.assignedSpools.sorted { $0.name < $1.name }) { spool in
+                        ForEach((workPackage.assignedSpools ?? []).sorted { $0.name < $1.name }) { spool in
                             spoolCardView(spool)
                         }
                     }
@@ -506,11 +506,11 @@ struct WorkPackageDetailView: View {
             }
             .padding(.horizontal)
 
-            if workPackage.assignedSpools.isEmpty {
+            if (workPackage.assignedSpools ?? []).isEmpty {
                 emptySpoolsView()
             } else {
                 List {
-                    ForEach(workPackage.assignedSpools.sorted { $0.name < $1.name }) { spool in
+                    ForEach((workPackage.assignedSpools ?? []).sorted { $0.name < $1.name }) { spool in
                         HStack {
                             // Spool info
                             Button {
@@ -577,7 +577,7 @@ struct WorkPackageDetailView: View {
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
-                .frame(minHeight: CGFloat(workPackage.assignedSpools.count) * 70)
+                .frame(minHeight: CGFloat((workPackage.assignedSpools ?? []).count) * 70)
                 .padding(.horizontal)
             }
         }
@@ -632,7 +632,7 @@ struct WorkPackageDetailView: View {
 
     private func deleteSpool(_ spool: Spool) {
         // Remove from work package's assigned spools
-        workPackage.assignedSpools.removeAll { $0.id == spool.id }
+        workPackage.assignedSpools?.removeAll { $0.id == spool.id }
         // Delete from model context
         modelContext.delete(spool)
         try? modelContext.save()
@@ -680,7 +680,7 @@ struct WorkPackageMailComposer: UIViewControllerRepresentable {
         }
 
         // Body text
-        let spoolCount = workPackage.assignedSpools.count
+        let spoolCount = (workPackage.assignedSpools ?? []).count
         let body = """
         Please find attached the work package binder for:
 
@@ -755,7 +755,7 @@ struct WorkPackageMailComposer: UIViewControllerRepresentable {
         }
 
         // Remaining pages: Individual spool sheets
-        let sortedSpools = workPackage.assignedSpools.sorted { $0.name < $1.name }
+        let sortedSpools = (workPackage.assignedSpools ?? []).sorted { $0.name < $1.name }
         for spool in sortedSpools {
             let spoolView = SpoolPDFView(spool: spool, project: project, workPackage: workPackage)
             let spoolRenderer = ImageRenderer(content:
@@ -867,7 +867,7 @@ struct PackageCoverPageView: View {
                         Text("TOTAL SPOOLS")
                             .font(.system(size: 10, weight: .medium))
                             .foregroundColor(.secondary)
-                        Text("\(workPackage.assignedSpools.count)")
+                        Text("\((workPackage.assignedSpools ?? []).count)")
                             .font(.system(size: 18, weight: .semibold))
                     }
                 }
@@ -1049,7 +1049,7 @@ struct PackageAggregatedBOMView: View {
     var aggregatedFittings: [(AggregatedFittingItem, Int)] {
         var counts: [String: (AggregatedFittingItem, Int)] = [:]
 
-        for spool in workPackage.assignedSpools {
+        for spool in workPackage.assignedSpools ?? [] {
             let pipePoints = spool.pipePoints
 
             for (index, point) in pipePoints.enumerated() {
@@ -1147,7 +1147,7 @@ struct PackageAggregatedBOMView: View {
     var aggregatedPipeLengths: [(PipeSize, CGFloat)] {
         var lengths: [PipeSize: CGFloat] = [:]
 
-        for spool in workPackage.assignedSpools {
+        for spool in workPackage.assignedSpools ?? [] {
             let pipePoints = spool.pipePoints
             for i in 0..<max(0, pipePoints.count - 1) {
                 let start = pipePoints[i].position
@@ -1319,12 +1319,12 @@ struct PackageAggregatedBOMView: View {
     @ViewBuilder
     func spoolListingView() -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("SPOOLS INCLUDED (\(workPackage.assignedSpools.count))")
+            Text("SPOOLS INCLUDED (\((workPackage.assignedSpools ?? []).count))")
                 .font(.system(size: 11, weight: .bold))
 
             Divider()
 
-            let sortedSpools = workPackage.assignedSpools.sorted { $0.name < $1.name }
+            let sortedSpools = (workPackage.assignedSpools ?? []).sorted { $0.name < $1.name }
             let columns = 3
             let rows = (sortedSpools.count + columns - 1) / columns
 
@@ -1387,11 +1387,11 @@ struct PackagePreviewView: View {
     let pageHeight: CGFloat = 8.5 * 72
 
     var totalPages: Int {
-        2 + workPackage.assignedSpools.count  // Cover + BOM + spools
+        2 + (workPackage.assignedSpools ?? []).count  // Cover + BOM + spools
     }
 
     var sortedSpools: [Spool] {
-        workPackage.assignedSpools.sorted { $0.name < $1.name }
+        (workPackage.assignedSpools ?? []).sorted { $0.name < $1.name }
     }
 
     var body: some View {

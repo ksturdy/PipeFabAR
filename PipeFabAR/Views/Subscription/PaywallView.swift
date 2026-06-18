@@ -6,6 +6,10 @@ struct PaywallView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var isRestoring = false
+    @State private var showPromoEntry = false
+    @State private var promoCode = ""
+    @State private var isRedeemingPromo = false
+    @State private var promoMessage: String?
 
     private let privacyURL = URL(string: "https://www.missionintegratedsystems.com/privacy")!
     private let termsURL = URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!
@@ -114,6 +118,11 @@ struct PaywallView: View {
                     }
                     .disabled(subscriptionManager.isPurchasing || subscriptionManager.product == nil)
 
+                    // Promo code
+                    Button("Have a promo code?") { showPromoEntry = true }
+                        .font(.subheadline)
+                        .foregroundColor(.blue)
+
                     // Restore purchases
                     Button {
                         Task {
@@ -162,6 +171,49 @@ struct PaywallView: View {
                     Button("Not Now") { dismiss() }
                 }
             }
+        }
+        #if DEBUG
+        .overlay(alignment: .topTrailing) {
+            Button("Skip (Debug)") {
+                subscriptionManager.debugUnlock()
+            }
+            .font(.caption.weight(.semibold))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(.ultraThinMaterial)
+            .clipShape(Capsule())
+            .padding()
+        }
+        #endif
+        .alert("Enter Promo Code", isPresented: $showPromoEntry) {
+            TextField("e.g. PIPEPRO2026", text: $promoCode)
+                .textInputAutocapitalization(.characters)
+                .autocorrectionDisabled()
+            Button("Redeem") {
+                let code = promoCode.trimmingCharacters(in: .whitespaces)
+                promoCode = ""
+                guard !code.isEmpty else { return }
+                Task {
+                    isRedeemingPromo = true
+                    do {
+                        let msg = try await BackendService.shared.redeemPromoCode(code)
+                        promoMessage = msg
+                        await subscriptionManager.refreshPromoStatus()
+                    } catch {
+                        promoMessage = error.localizedDescription
+                    }
+                    isRedeemingPromo = false
+                }
+            }
+            Button("Cancel", role: .cancel) { promoCode = "" }
+        }
+        .alert("Promo Code", isPresented: Binding(
+            get: { promoMessage != nil },
+            set: { if !$0 { promoMessage = nil } }
+        )) {
+            Button("OK") { promoMessage = nil }
+        } message: {
+            Text(promoMessage ?? "")
         }
         .onChange(of: subscriptionManager.isProSubscriber) { _, isPro in
             if isPro { dismiss() }

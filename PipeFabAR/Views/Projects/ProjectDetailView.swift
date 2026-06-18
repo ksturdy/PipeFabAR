@@ -265,10 +265,10 @@ struct WorkPackagesSection: View {
             }
             .padding(.horizontal)
 
-            if project.workPackages.isEmpty {
+            if (project.workPackages ?? []).isEmpty {
                 EmptyPackagesView(showingAddSheet: $showingAddSheet)
             } else {
-                ForEach(project.workPackages) { package in
+                ForEach(project.workPackages ?? []) { package in
                     WorkPackageRow(package: package)
                 }
                 .padding(.horizontal)
@@ -380,7 +380,7 @@ struct UnassignedSpoolsSection: View {
             }
             .padding(.horizontal)
 
-            if project.spools.isEmpty {
+            if (project.spools ?? []).isEmpty {
                 VStack(spacing: 12) {
                     Image(systemName: "cylinder.fill")
                         .font(.largeTitle)
@@ -398,7 +398,7 @@ struct UnassignedSpoolsSection: View {
                 .padding(.vertical, 40)
             } else {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 150))], spacing: 16) {
-                    ForEach(project.spools) { spool in
+                    ForEach(project.spools ?? []) { spool in
                         Text(spool.name)
                             .frame(maxWidth: .infinity)
                             .padding()
@@ -472,7 +472,7 @@ struct CreateWorkPackageSheet: View {
             project: project
         )
 
-        project.workPackages.append(package)
+        project.workPackages = (project.workPackages ?? []) + [package]
         modelContext.insert(package)
 
         do {

@@ -1,0 +1,45 @@
+{
+  "identifier": "B2C3D4E5-F6A7-8901-BCDE-F12345678901",
+  "nonConsumableProducts": [],
+  "nonRenewingSubscriptionProducts": [],
+  "settings": {
+    "_locale": "en_US",
+    "_storeKitErrors": [
+      {"current": null, "enabled": false, "name": "Load Products"},
+      {"current": null, "enabled": false, "name": "Purchase"},
+      {"current": null, "enabled": false, "name": "Verification"}
+    ]
+  },
+  "subscriptionGroups": [
+    {
+      "id": "22000000",
+      "localizations": [],
+      "name": "Pro",
+      "subscriptions": [
+        {
+          "adHocOfferCodesEnabled": true,
+          "displayPrice": "7.99",
+          "familySharable": false,
+          "groupLevel": 1,
+          "internalID": "22000001",
+          "localizations": [
+            {
+              "description": "Unlimited projects, work packages, and spools.",
+              "displayName": "PipeFabAR Pro",
+              "locale": "en_US"
+            }
+          ],
+          "productID": "com.missionintegratedsystems.pipefabar.pro.monthly",
+          "recurringSubscriptionPeriod": "P1M",
+          "referenceName": "Pro Monthly",
+          "subscriptionGroupID": "22000000",
+          "type": "RecurringSubscription"
+        }
+      ]
+    }
+  ],
+  "version": {
+    "major": 3,
+    "minor": 0
+  }
+}

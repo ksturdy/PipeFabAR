@@ -6,11 +6,16 @@
 //
 
 import SwiftUI
+import AuthenticationServices
 
 /// Welcome screen shown when the app first launches
 struct WelcomeView: View {
     @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject private var subscriptionManager: SubscriptionManager
     @State private var navigateToProjects = false
+    @State private var isRestoring = false
+    @State private var restoreMessage: String?
+    @State private var signInError: String?
 
     // Get app version from bundle
     var appVersion: String {
@@ -72,6 +77,16 @@ struct WelcomeView: View {
                         .shadow(color: .blue.opacity(0.3), radius: 8, x: 0, y: 4)
                     }
 
+                    // Sign In with Apple
+                    SignInWithAppleButton(.signIn, onRequest: { request in
+                        request.requestedScopes = [.fullName, .email]
+                    }, onCompletion: { result in
+                        handleAppleSignIn(result)
+                    })
+                    .signInWithAppleButtonStyle(.white)
+                    .frame(maxWidth: 300, maxHeight: 50)
+                    .cornerRadius(12)
+
                     // Feedback Button
                     Button(action: sendFeedback) {
                         HStack {
@@ -87,6 +102,43 @@ struct WelcomeView: View {
                         .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
                     }
                     .padding(.top, 8)
+
+                    #if DEBUG
+                    Button("Skip (Debug) — Unlock Pro") {
+                        subscriptionManager.debugUnlock()
+                        navigateToProjects = true
+                    }
+                    .font(.caption.weight(.semibold))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(.ultraThinMaterial)
+                    .clipShape(Capsule())
+                    #endif
+
+                    // Restore Purchases
+                    Button {
+                        Task {
+                            isRestoring = true
+                            await subscriptionManager.restore()
+                            isRestoring = false
+                            if subscriptionManager.isProSubscriber {
+                                restoreMessage = "Your Pro subscription has been restored."
+                            } else {
+                                restoreMessage = "No active subscription found."
+                            }
+                        }
+                    } label: {
+                        if isRestoring {
+                            ProgressView()
+                                .progressViewStyle(.circular)
+                                .frame(height: 20)
+                        } else {
+                            Text("Restore Purchases")
+                                .font(.system(size: 15))
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .disabled(isRestoring)
 
                     Spacer()
 
@@ -129,6 +181,55 @@ struct WelcomeView: View {
         .task {
             SpecificationManager.shared.ensureDefaultSpecifications(in: modelContext)
         }
+        .alert("Restore Purchases", isPresented: Binding(
+            get: { restoreMessage != nil },
+            set: { if !$0 { restoreMessage = nil } }
+        )) {
+            Button("OK") { restoreMessage = nil }
+        } message: {
+            Text(restoreMessage ?? "")
+        }
+        .alert("Purchase Error", isPresented: Binding(
+            get: { subscriptionManager.errorMessage != nil },
+            set: { if !$0 { subscriptionManager.errorMessage = nil } }
+        )) {
+            Button("OK") { subscriptionManager.errorMessage = nil }
+        } message: {
+            Text(subscriptionManager.errorMessage ?? "")
+        }
+        .alert("Sign In Error", isPresented: Binding(
+            get: { signInError != nil },
+            set: { if !$0 { signInError = nil } }
+        )) {
+            Button("OK") { signInError = nil }
+        } message: {
+            Text(signInError ?? "")
+        }
+    }
+
+    func handleAppleSignIn(_ result: Result<ASAuthorization, Error>) {
+        guard case .success(let auth) = result,
+              let credential = auth.credential as? ASAuthorizationAppleIDCredential,
+              let tokenData = credential.identityToken,
+              let token = String(data: tokenData, encoding: .utf8) else {
+            if case .failure(let error) = result {
+                signInError = error.localizedDescription
+            }
+            return
+        }
+        let nameParts = [credential.fullName?.givenName, credential.fullName?.familyName]
+        let fullName = nameParts.compactMap { $0 }.joined(separator: " ")
+        Task {
+            do {
+                try await BackendService.shared.signInWithApple(
+                    identityToken: token,
+                    fullName: fullName.isEmpty ? nil : fullName
+                )
+                await subscriptionManager.refreshPromoStatus()
+            } catch {
+                signInError = error.localizedDescription
+            }
+        }
     }
 
     func sendFeedback() {
@@ -150,4 +251,5 @@ struct WelcomeView: View {
 #Preview {
     WelcomeView()
         .modelContainer(DataController.shared.container)
+        .environmentObject(SubscriptionManager())
 }

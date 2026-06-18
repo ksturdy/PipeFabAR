@@ -23,18 +23,37 @@ class DataController {
         ])
         print("⏱ Schema created \(Date())")
 
-        let configuration = ModelConfiguration(
+        let cloudConfig = ModelConfiguration(
             schema: schema,
-            isStoredInMemoryOnly: false
+            isStoredInMemoryOnly: false,
+            cloudKitDatabase: .private("iCloud.com.missionintegrated.PipeFabAR")
         )
         print("⏱ ModelConfiguration created \(Date())")
 
         do {
-            container = try ModelContainer(for: schema, configurations: [configuration])
-            print("⏱ ModelContainer created \(Date())")
+            container = try ModelContainer(for: schema, configurations: [cloudConfig])
+            print("⏱ ModelContainer created with CloudKit \(Date())")
         } catch {
-            fatalError("Failed to initialize ModelContainer: \(error.localizedDescription)")
+            print("⚠️ CloudKit ModelContainer failed: \(error.localizedDescription)")
+            // Existing local store may have old schema — delete it and start fresh.
+            // CloudKit will restore data from iCloud on next sync.
+            DataController.deleteLocalStore()
+            let localConfig = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+            do {
+                container = try ModelContainer(for: schema, configurations: [localConfig])
+                print("⏱ ModelContainer created locally after store reset \(Date())")
+            } catch {
+                fatalError("Failed to initialize ModelContainer: \(error.localizedDescription)")
+            }
         }
+    }
+
+    private static func deleteLocalStore() {
+        let dir = URL.applicationSupportDirectory
+        for name in ["default.store", "default.store-shm", "default.store-wal"] {
+            try? FileManager.default.removeItem(at: dir.appending(path: name))
+        }
+        print("⚠️ Local store deleted for schema migration")
     }
 
     /// Create a sample project for testing/demo purposes
@@ -59,7 +78,7 @@ class DataController {
         )
         package2.project = project
 
-        project.workPackages = [package1, package2]
+        project.workPackages = (project.workPackages ?? []) + [package1, package2]
 
         context.insert(project)
 

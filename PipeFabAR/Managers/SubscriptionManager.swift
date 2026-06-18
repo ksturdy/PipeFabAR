@@ -25,6 +25,13 @@ final class SubscriptionManager: ObservableObject {
         }
     }
 
+    func refreshPromoStatus() async {
+        guard let expiresAt = await BackendService.shared.checkPromoStatus() else { return }
+        if expiresAt > Date() {
+            isProSubscriber = true
+        }
+    }
+
     func loadProduct() async {
         do {
             let products = try await Product.products(for: [Self.productID])
@@ -68,8 +75,20 @@ final class SubscriptionManager: ObservableObject {
                 hasActive = true
             }
         }
+        // Check backend promo access if no active StoreKit subscription
+        if !hasActive {
+            if let expiresAt = await BackendService.shared.checkPromoStatus(), expiresAt > Date() {
+                hasActive = true
+            }
+        }
         isProSubscriber = hasActive
     }
+
+    #if DEBUG
+    func debugUnlock() {
+        isProSubscriber = true
+    }
+    #endif
 
     private func listenForTransactions() async {
         for await result in Transaction.updates {

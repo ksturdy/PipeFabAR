@@ -28,7 +28,7 @@ struct WorkPackagesSectionEnhanced: View {
                 Spacer()
 
                 Button {
-                    if project.workPackages.count >= SubscriptionManager.freeWorkPackageLimit && !subscriptionManager.isProSubscriber {
+                    if (project.workPackages ?? []).count >= SubscriptionManager.freeWorkPackageLimit && !subscriptionManager.isProSubscriber {
                         showingPaywall = true
                     } else {
                         showingAddSheet = true
@@ -43,11 +43,11 @@ struct WorkPackagesSectionEnhanced: View {
                 PaywallView().environmentObject(subscriptionManager)
             }
 
-            if project.workPackages.isEmpty {
+            if (project.workPackages ?? []).isEmpty {
                 EmptyPackagesView(showingAddSheet: $showingAddSheet)
             } else {
                 List {
-                    ForEach(project.workPackages) { package in
+                    ForEach(project.workPackages ?? []) { package in
                         WorkPackageCard(workPackage: package, project: project)
                             .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
                             .listRowSeparator(.hidden)
@@ -62,21 +62,21 @@ struct WorkPackagesSectionEnhanced: View {
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
-                .frame(minHeight: CGFloat(project.workPackages.count) * 120)
+                .frame(minHeight: CGFloat((project.workPackages ?? []).count) * 120)
             }
         }
     }
 
     private func deleteWorkPackage(_ package: WorkPackage) {
         // Move any assigned spools back to unassigned (project level)
-        for spool in package.assignedSpools {
+        for spool in package.assignedSpools ?? [] {
             spool.workPackage = nil
-            project.spools.append(spool)
+            project.spools = (project.spools ?? []) + [spool]
         }
-        package.assignedSpools.removeAll()
+        package.assignedSpools?.removeAll()
 
         // Remove from project
-        project.workPackages.removeAll { $0.id == package.id }
+        project.workPackages?.removeAll { $0.id == package.id }
 
         // Delete from model context
         modelContext.delete(package)
@@ -98,11 +98,11 @@ struct UnassignedSpoolsSectionEnhanced: View {
         var spools: [Spool] = []
 
         // Add unassigned spools from project
-        spools.append(contentsOf: project.spools)
+        spools.append(contentsOf: project.spools ?? [])
 
         // Add spools from all work packages
-        for package in project.workPackages {
-            spools.append(contentsOf: package.assignedSpools)
+        for package in project.workPackages ?? [] {
+            spools.append(contentsOf: package.assignedSpools ?? [])
         }
 
         // Sort by name
@@ -279,7 +279,7 @@ struct CreateSpoolSheet: View {
                 Section(header: Text("Assign to Work Package (Optional)")) {
                     Picker("Work Package", selection: $selectedWorkPackage) {
                         Text("Unassigned").tag(nil as WorkPackage?)
-                        ForEach(project.workPackages) { package in
+                        ForEach(project.workPackages ?? []) { package in
                             Text("\(package.name) (PKG #\(package.packageNumber))")
                                 .tag(package as WorkPackage?)
                         }
@@ -354,9 +354,9 @@ struct CreateSpoolSheet: View {
 
         if let workPackage = selectedWorkPackage {
             spool.workPackage = workPackage
-            workPackage.assignedSpools.append(spool)
+            workPackage.assignedSpools = (workPackage.assignedSpools ?? []) + [spool]
         } else {
-            project.spools.append(spool)
+            project.spools = (project.spools ?? []) + [spool]
         }
 
         modelContext.insert(spool)

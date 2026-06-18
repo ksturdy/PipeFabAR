@@ -25,14 +25,14 @@ struct WorkPackageSpoolsListView: View {
     var body: some View {
         NavigationStack {
             List {
-                if workPackage.assignedSpools.isEmpty {
+                if (workPackage.assignedSpools ?? []).isEmpty {
                     ContentUnavailableView(
                         "No Spools",
                         systemImage: "cylinder.fill",
                         description: Text("Create spools for this work package")
                     )
                 } else {
-                    ForEach(workPackage.assignedSpools) { spool in
+                    ForEach(workPackage.assignedSpools ?? []) { spool in
                         HStack {
                             // Spool info - tappable to edit
                             Button {
@@ -143,7 +143,7 @@ struct WorkPackageSpoolsListView: View {
 
     private func deleteSpool(_ spool: Spool) {
         // Remove from work package's assigned spools
-        workPackage.assignedSpools.removeAll { $0.id == spool.id }
+        workPackage.assignedSpools?.removeAll { $0.id == spool.id }
         // Delete from model context
         modelContext.delete(spool)
         try? modelContext.save()
@@ -973,7 +973,7 @@ struct MoveSpoolSheet: View {
                     }
 
                     // Work packages
-                    ForEach(project.workPackages) { package in
+                    ForEach(project.workPackages ?? []) { package in
                         if package.id != currentPackage?.id {
                             Button {
                                 selectedDestination = .workPackage(package.id)
@@ -1026,21 +1026,21 @@ struct MoveSpoolSheet: View {
     private func moveSpool() {
         // Remove from current location
         if let currentPkg = currentPackage {
-            currentPkg.assignedSpools.removeAll { $0.id == spool.id }
+            currentPkg.assignedSpools?.removeAll { $0.id == spool.id }
         } else {
-            project.spools.removeAll { $0.id == spool.id }
+            project.spools?.removeAll { $0.id == spool.id }
         }
 
         // Move to new location
         switch selectedDestination {
         case .unassigned:
             spool.workPackage = nil
-            project.spools.append(spool)
+            project.spools = (project.spools ?? []) + [spool]
 
         case .workPackage(let packageId):
-            if let targetPackage = project.workPackages.first(where: { $0.id == packageId }) {
+            if let targetPackage = (project.workPackages ?? []).first(where: { $0.id == packageId }) {
                 spool.workPackage = targetPackage
-                targetPackage.assignedSpools.append(spool)
+                targetPackage.assignedSpools = (targetPackage.assignedSpools ?? []) + [spool]
             }
 
         case .none:

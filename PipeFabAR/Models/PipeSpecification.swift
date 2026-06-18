@@ -11,11 +11,16 @@ import SwiftData
 /// Pipe material and schedule specification
 @Model
 final class PipeSpecification {
-    var id: UUID
-    var specDescription: String // e.g., "Carbon Steel Schedule 40"
-    var abbreviation: String    // e.g., "CS SCH 40"
-    var sortOrder: Int          // For custom ordering
-    var isDefault: Bool         // Whether this is the default spec for new projects
+    var id: UUID = UUID()
+    var specDescription: String = ""
+    var abbreviation: String = ""
+    var sortOrder: Int = 0
+    var isDefault: Bool = false
+
+    // Inverse back-references required for CloudKit
+    @Relationship(deleteRule: .nullify) var projectsUsingAsDefault: [Project]?
+    @Relationship(deleteRule: .nullify) var spoolOverrides: [Spool]?
+    @Relationship(deleteRule: .nullify) var workPackageOverrides: [WorkPackage]?
 
     init(
         id: UUID = UUID(),
@@ -31,7 +36,6 @@ final class PipeSpecification {
         self.isDefault = isDefault
     }
 
-    /// Display name combining description and abbreviation
     var displayName: String {
         "\(specDescription) (\(abbreviation))"
     }
